@@ -164,7 +164,8 @@ Difficulty: [Easy/Medium/Hard]
                         'id': q.id,
                         'question': q.question,
                         'category': q.category,
-                        'difficulty': q.difficulty
+                        'difficulty': q.difficulty,
+                        'success_rate': q.success_rate
                     } for q in saved_questions]
                 })
 
