@@ -200,6 +200,12 @@ def process_chat():
         logging.error(f"Chat error: {str(e)}")
         return jsonify({'error': 'Failed to generate response'}), 500
 
+@app.route('/study-plan/<int:plan_id>')
+def view_study_plan(plan_id):
+    from models import StudyPlan
+    study_plan = StudyPlan.query.get_or_404(plan_id)
+    return render_template('study_plan_view.html', study_plan=study_plan)
+
 @app.route('/documents/combine', methods=['POST'])
 def combine_documents():
     try:
@@ -231,7 +237,7 @@ def combine_documents():
 
         return jsonify({
             'success': True,
-            'redirect_url': url_for('view_document', doc_id=study_plan.id)
+            'redirect_url': url_for('view_study_plan', plan_id=study_plan.id)
         })
 
     except Exception as e:
