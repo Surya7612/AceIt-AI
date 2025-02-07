@@ -555,10 +555,23 @@ def generate_interview_questions():
 
         # Clear existing questions and practices first
         logging.info("Clearing existing questions and practices")
-        InterviewPractice.query.join(InterviewQuestion).filter(InterviewQuestion.user_id == user_id).delete(synchronize_session=False)
-        InterviewQuestion.query.filter_by(user_id=user_id).delete(synchronize_session=False)
-        db.session.commit()
-        logging.info("Successfully cleared existing questions and practices")
+        try:
+            # Delete practices first (due to foreign key constraint)
+            practices = InterviewPractice.query.join(InterviewQuestion).filter(InterviewQuestion.user_id == user_id).all()
+            for practice in practices:
+                db.session.delete(practice)
+
+            # Then delete questions
+            questions = InterviewQuestion.query.filter_by(user_id=user_id).all()
+            for question in questions:
+                db.session.delete(question)
+
+            db.session.commit()
+            logging.info("Successfully cleared existing questions and practices")
+        except Exception as e:
+            logging.error(f"Error clearing questions: {str(e)}")
+            db.session.rollback()
+            return jsonify({'error': 'Failed to clear existing questions'}), 500
 
         data = request.get_json()
         job_description = data.get('job_description', '')
