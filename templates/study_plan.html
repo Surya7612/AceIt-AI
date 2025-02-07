@@ -2,11 +2,11 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-8 mx-auto">
+    <!-- Study Plan Creation Form -->
+    <div class="col-md-4">
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Study Plan Generator</h5>
-                <button class="btn btn-primary btn-sm" id="generate-plan">Generate New Plan</button>
+            <div class="card-header">
+                <h5 class="mb-0">Create New Study Plan</h5>
             </div>
             <div class="card-body">
                 <form id="study-plan-form">
@@ -22,15 +22,98 @@
                         <label for="goals" class="form-label">Learning Goals</label>
                         <textarea class="form-control" id="goals" rows="3" required></textarea>
                     </div>
-                    <button type="submit" class="btn btn-success">Create Plan</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-feather="plus-circle"></i> Create Plan
+                    </button>
                 </form>
+            </div>
+        </div>
+    </div>
 
-                <div id="generated-plan" class="mt-4" style="display: none;">
-                    <h6>Generated Study Plan</h6>
-                    <div class="plan-content"></div>
-                </div>
+    <!-- Study Plans List -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Your Study Plans</h5>
+            </div>
+            <div class="card-body">
+                {% if plans %}
+                    <div class="list-group">
+                        {% for plan in plans %}
+                            <a href="{{ url_for('view_study_plan', plan_id=plan.id) }}" 
+                               class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">{{ plan.title }}</h6>
+                                        <div class="d-flex gap-2 align-items-center">
+                                            <span class="badge bg-{{ 'info' if plan.category == 'DSA' 
+                                                                else 'success' if plan.category == 'System Design' 
+                                                                else 'warning' if plan.category == 'Behavioral' 
+                                                                else 'secondary' }}">
+                                                {{ plan.category }}
+                                            </span>
+                                            <small class="text-muted">
+                                                Created {{ plan.created_at.strftime('%Y-%m-%d') }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="progress" style="width: 100px; height: 8px;">
+                                            <div class="progress-bar bg-success" role="progressbar" 
+                                                 style="width: {{ plan.progress }}%"
+                                                 aria-valuenow="{{ plan.progress }}" 
+                                                 aria-valuemin="0" aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <small class="text-muted">{{ plan.progress }}% Complete</small>
+                                    </div>
+                                </div>
+                            </a>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <p class="text-muted mb-0">No study plans created yet.</p>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const studyPlanForm = document.getElementById('study-plan-form');
+
+    studyPlanForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = {
+            topic: document.getElementById('topic').value,
+            duration: document.getElementById('duration').value,
+            goals: document.getElementById('goals').value
+        };
+
+        try {
+            const response = await fetch('/study-plan/new', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                window.location.reload();
+            } else {
+                alert(result.error || 'Failed to create study plan');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to create study plan. Please try again.');
+        }
+    });
+});
+</script>
 {% endblock %}
