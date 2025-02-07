@@ -118,23 +118,17 @@ Focus on addressing the specific learning objectives while covering the topic th
                         messages=[
                             {
                                 "role": "system",
-                                "content": """Create comprehensive study material in JSON format with the following structure:
+                                "content": """You are a study plan generator that creates detailed, structured content.
+                                Always respond with valid JSON following this structure:
                                 {
                                     "title": "Study Topic",
                                     "difficulty_level": "beginner|intermediate|advanced",
-                                    "estimated_study_time": number,
+                                    "estimated_study_time": "number",
                                     "summary": "Brief overview focusing on learning objectives",
-                                    "learning_objectives": ["objective 1", "objective 2"],
-                                    "daily_schedule": {
-                                        "minutes_per_day": number,
-                                        "total_days": number,
-                                        "priority_level": number
-                                    },
                                     "key_concepts": [
                                         {
                                             "name": "Concept name",
                                             "description": "Detailed explanation",
-                                            "relevance": "How this connects to learning objectives",
                                             "priority": "high|medium|low"
                                         }
                                     ],
@@ -144,8 +138,7 @@ Focus on addressing the specific learning objectives while covering the topic th
                                             "content": "Detailed content",
                                             "key_points": ["point 1", "point 2"],
                                             "examples": ["example 1", "example 2"],
-                                            "objectives_covered": ["related objective 1"],
-                                            "time_allocation": number,
+                                            "time_allocation": "number",
                                             "priority": "high|medium|low"
                                         }
                                     ],
@@ -154,28 +147,16 @@ Focus on addressing the specific learning objectives while covering the topic th
                                             "question": "Question text",
                                             "answer": "Answer text",
                                             "explanation": "Detailed explanation",
-                                            "difficulty": "easy|medium|hard",
-                                            "related_objective": "Which learning objective this tests",
-                                            "estimated_time": number
+                                            "difficulty": "easy|medium|hard"
                                         }
-                                    ],
-                                    "progress_tracking": {
-                                        "milestones": [
-                                            {
-                                                "description": "Milestone description",
-                                                "target_date": "YYYY-MM-DD",
-                                                "objectives_covered": ["objective 1"]
-                                            }
-                                        ]
-                                    }
+                                    ]
                                 }"""
                             },
                             {
                                 "role": "user",
                                 "content": content_prompt
                             }
-                        ],
-                        response_format={"type": "json_object"}
+                        ]
                     )
 
                     content = ai_content.choices[0].message.content
@@ -190,20 +171,6 @@ Focus on addressing the specific learning objectives while covering the topic th
                         logging.error(f"Invalid JSON content: {str(e)}")
                         return jsonify({'error': 'Failed to generate valid study plan content'}), 500
 
-                    # Create a document with AI-generated content
-                    doc = Document(
-                        filename=f"ai_generated_{topic.lower().replace(' ', '_')}.txt",
-                        original_filename=f"AI Generated Content - {topic}",
-                        file_type='text',
-                        content=content,
-                        processed=True,
-                        category='General',  # Will be updated by AI processing
-                        user_id=1
-                    )
-                    db.session.add(doc)
-                    documents.append(doc)
-                    logging.info("Successfully created AI document")
-
                     # Create study plan with verified content
                     study_plan = StudyPlan(
                         title=topic,
@@ -214,7 +181,7 @@ Focus on addressing the specific learning objectives while covering the topic th
                         daily_study_time=int(daily_time),
                         difficulty_level=difficulty,
                         completion_target=datetime.strptime(completion_date, '%Y-%m-%d'),
-                        schedule=json.dumps(parsed_content.get('daily_schedule', {})),
+                        schedule=json.dumps(parsed_content.get('sections', [])),
                         progress=0
                     )
 
