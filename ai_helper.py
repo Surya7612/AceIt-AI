@@ -13,7 +13,7 @@ def generate_study_plan(content):
             messages=[
                 {
                     "role": "system",
-                    "content": "Create a detailed study plan based on the provided content. Include sections, goals, and estimated time requirements."
+                    "content": "Create a detailed study plan based on the provided content. Return the plan in JSON format with the following structure: {'sections': [{'title': string, 'duration': string, 'tasks': [string]}], 'total_duration': string, 'learning_goals': [string]}"
                 },
                 {"role": "user", "content": content}
             ],

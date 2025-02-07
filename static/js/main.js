@@ -6,7 +6,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (uploadForm) {
         uploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(uploadForm);
+            const formData = new FormData();
+
+            // Add files
+            const fileInput = document.getElementById('files');
+            Array.from(fileInput.files).forEach(file => {
+                formData.append('files', file);
+            });
+
+            // Add link if present
+            const linkInput = document.getElementById('link');
+            if (linkInput.value) {
+                formData.append('link', linkInput.value);
+            }
+
             const progressBar = document.getElementById('uploadProgress');
             const progressBarInner = progressBar.querySelector('.progress-bar');
 
@@ -63,7 +76,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (result.success) {
                     document.getElementById('generated-plan').style.display = 'block';
-                    document.querySelector('.plan-content').innerHTML = result.plan;
+                    const plan = JSON.parse(result.plan);
+                    let html = '<div class="study-plan-content">';
+                    html += `<h6 class="mb-3">Total Duration: ${plan.total_duration}</h6>`;
+                    html += '<h6 class="mb-2">Learning Goals:</h6>';
+                    html += '<ul class="mb-3">';
+                    plan.learning_goals.forEach(goal => {
+                        html += `<li>${goal}</li>`;
+                    });
+                    html += '</ul>';
+                    html += '<h6 class="mb-2">Study Sections:</h6>';
+                    plan.sections.forEach(section => {
+                        html += `<div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">${section.title} (${section.duration})</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul class="mb-0">`;
+                        section.tasks.forEach(task => {
+                            html += `<li>${task}</li>`;
+                        });
+                        html += `</ul>
+                            </div>
+                        </div>`;
+                    });
+                    html += '</div>';
+                    document.querySelector('.plan-content').innerHTML = html;
                 } else {
                     alert('Failed to generate study plan: ' + result.error);
                 }
