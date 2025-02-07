@@ -312,20 +312,50 @@ let recordedChunks = [];
 let startTime = null;
 let timerInterval = null;
 
-// Fix handleResumeFile to be async
+// Fix handleResumeFile to be properly async and handle file uploads correctly
 async function handleResumeFile() {
     const fileInput = document.getElementById('resumeFile');
+    const resumeTextArea = document.getElementById('resume');
     const file = fileInput.files[0];
+
     if (!file) {
         alert('Please select a file first');
         return;
     }
 
-    if (file.type === 'text/plain') {
-        const text = await file.text();
-        document.getElementById('resume').value = text;
-    } else {
-        document.getElementById('resume').value = `[Content from: ${file.name}]`;
+    try {
+        if (file.type === 'text/plain') {
+            const text = await file.text();
+            resumeTextArea.value = text;
+        } else if (file.type === 'application/pdf' || 
+                  file.type === 'application/msword' || 
+                  file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+            resumeTextArea.value = `[Content from: ${file.name}]`;
+        } else {
+            alert('Unsupported file type. Please upload a .txt, .doc, .docx, or .pdf file');
+            fileInput.value = ''; // Clear the file input
+            return;
+        }
+
+        // Show visual feedback
+        const uploadButton = fileInput.nextElementSibling;
+        const originalText = uploadButton.innerHTML;
+        uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
+        uploadButton.classList.remove('btn-outline-secondary');
+        uploadButton.classList.add('btn-success');
+        feather.replace(); // Refresh icons
+
+        // Reset button after 2 seconds
+        setTimeout(() => {
+            uploadButton.innerHTML = originalText;
+            uploadButton.classList.remove('btn-success');
+            uploadButton.classList.add('btn-outline-secondary');
+            feather.replace();
+        }, 2000);
+    } catch (error) {
+        console.error('Error handling file:', error);
+        alert('Error processing file. Please try again.');
+        resumeTextArea.value = '';
     }
 }
 
