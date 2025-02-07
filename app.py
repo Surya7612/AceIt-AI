@@ -578,19 +578,20 @@ def generate_interview_questions():
                 {
                     "role": "system",
                     "content": """You are an expert technical interviewer. Generate interview questions based on the job description.
-                    Return a JSON object with this exact structure:
-                    {
-                        "success_rate": 85,
-                        "analysis": "Brief analysis of the job requirements",
-                        "questions": [
-                            {
-                                "question": "The interview question",
-                                "sample_answer": "A good example answer",
-                                "category": "Technical",
-                                "difficulty": "Medium"
-                            }
-                        ]
-                    }"""
+Generate the response in the following JSON format:
+{
+    "success_rate": 85,
+    "analysis": "Brief analysis of the job requirements",
+    "questions": [
+        {
+            "question": "The interview question",
+            "sample_answer": "A good example answer",
+            "category": "Technical",
+            "difficulty": "Medium"
+        }
+    ]
+}
+IMPORTANT: Always respond with valid JSON."""
                 },
                 {
                     "role": "user",
@@ -604,8 +605,7 @@ def generate_interview_questions():
                 response = client.chat.completions.create(
                     model="gpt-4",
                     messages=messages,
-                    temperature=0.7,
-                    response_format={"type": "json_object"}
+                    temperature=0.7
                 )
 
                 content = response.choices[0].message.content
