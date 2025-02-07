@@ -20,7 +20,8 @@
             </div>
             <div class="card-body">
                 {% if content %}
-                    {% set parsed_content = content | tojson | safe | from_json %}
+                    {% set parsed_content = content | parse_json %}
+                    {% if parsed_content %}
                     <div class="structured-content">
                         <!-- Title and Summary Section -->
                         <div class="mb-4">
@@ -156,6 +157,12 @@
                             </div>
                         {% endif %}
                     </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <h6 class="alert-heading">Processing Error</h6>
+                            <p class="mb-0">There was an error processing the document content. Please try again later.</p>
+                        </div>
+                    {% endif %}
                 {% else %}
                     <div class="alert alert-info">
                         {% if document.processed %}

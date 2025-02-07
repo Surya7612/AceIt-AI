@@ -1,12 +1,13 @@
 import os
 import logging
+import json
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from ai_helper import generate_study_plan, chat_response
 from ocr_helper import extract_text_from_image
-from document_processor import DocumentProcessor #Added import
+from document_processor import DocumentProcessor
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -26,6 +27,14 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
 
 # Initialize extensions
 db.init_app(app)
+
+# Custom Jinja2 filters
+@app.template_filter('parse_json')
+def parse_json_filter(value):
+    try:
+        return json.loads(value) if value else None
+    except:
+        return None
 
 # Ensure upload directory exists
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -172,8 +181,7 @@ def upload_file():
 def view_document(doc_id):
     from models import Document
     document = Document.query.get_or_404(doc_id)
-    structured_content = document.structured_content # simplified access
-    return render_template('document_view.html', document=document, content=structured_content)
+    return render_template('document_view.html', document=document, content=document.structured_content)
 
 @app.route('/chat')
 def chat():
