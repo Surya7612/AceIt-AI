@@ -37,15 +37,22 @@ def allowed_file(filename):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    from models import Document, StudyPlan
+    recent_docs = Document.query.order_by(Document.created_at.desc()).limit(5).all()
+    recent_plans = StudyPlan.query.order_by(StudyPlan.created_at.desc()).limit(5).all()
+    return render_template('index.html', recent_docs=recent_docs, recent_plans=recent_plans)
 
-@app.route('/chat')
-def chat():
-    return render_template('chat.html')
+@app.route('/documents')
+def documents():
+    from models import Document
+    documents = Document.query.order_by(Document.created_at.desc()).all()
+    return render_template('documents.html', documents=documents)
 
 @app.route('/study-plan')
 def study_plan():
-    return render_template('study_plan.html')
+    from models import StudyPlan
+    plans = StudyPlan.query.order_by(StudyPlan.created_at.desc()).all()
+    return render_template('study_plan.html', plans=plans)
 
 @app.route('/study-plan/new', methods=['GET', 'POST'])
 def create_study_plan():
@@ -55,25 +62,28 @@ def create_study_plan():
             if not data or not all(k in data for k in ('topic', 'duration', 'goals')):
                 return jsonify({'error': 'Missing required fields'}), 400
 
-            # For now, we'll store study plans without user association
-            # This is temporary until user authentication is implemented
             from models import StudyPlan
+            content = generate_study_plan(
+                f"Topic: {data['topic']}\nDuration: {data['duration']} hours\nGoals: {data['goals']}"
+            )
+
+            # Create study plan
             study_plan = StudyPlan(
                 title=data['topic'],
                 category='General',
-                content=generate_study_plan(
-                    f"Topic: {data['topic']}\nDuration: {data['duration']} hours\nGoals: {data['goals']}"
-                ),
-                user_id=1,  # Temporary default user ID
+                content=content,
+                user_id=1,  # Default user
                 completion_target=datetime.utcnow() + timedelta(hours=int(data['duration']))
             )
+
             db.session.add(study_plan)
             db.session.commit()
 
-            return jsonify({'success': True, 'plan': study_plan.content})
+            return jsonify({'success': True, 'plan': content})
         except Exception as e:
             logging.error(f"Study plan creation error: {str(e)}")
             return jsonify({'error': str(e)}), 500
+
     return render_template('study_plan.html')
 
 @app.route('/upload', methods=['POST'])
@@ -140,6 +150,10 @@ def upload_file():
     except Exception as e:
         logging.error(f"Upload error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/chat')
+def chat():
+    return render_template('chat.html')
 
 @app.route('/chat', methods=['POST'])
 def process_chat():
