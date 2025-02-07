@@ -245,6 +245,7 @@ def submit_answer(question_id):
     """Submit an answer for an interview question"""
     try:
         from models import InterviewPractice, InterviewQuestion
+        logging.info("Starting answer submission process")
 
         # Get the question
         question = InterviewQuestion.query.get_or_404(question_id)
@@ -283,21 +284,23 @@ def submit_answer(question_id):
         # Generate AI feedback
         try:
             client = OpenAI()
+            logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
             # Prepare prompt based on question type
-            context = f"""Question: {question.question}\n
-                     Expected Answer: {question.sample_answer}\n
-                     User's Answer: {practice.user_answer}\n
-                     Category: {question.category}\n"""
+            context = f"""Question: {question.question}
+Expected Answer: {question.sample_answer}
+User's Answer: {practice.user_answer}
+Category: {question.category}"""
 
             prompt = f"""Analyze this interview answer and provide feedback:
-                     {context}
-                     Provide feedback in JSON format with these fields:
-                     1. score (0-100)
-                     2. feedback (detailed analysis)
-                     3. confidence_score (0-100, only for audio/video)"""
+{context}
+Provide feedback in JSON format with these fields:
+1. score (0-100)
+2. feedback (detailed analysis)
+3. confidence_score (0-100, only for audio/video)"""
 
+            logging.info("Sending feedback request to OpenAI")
             response = client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o",  # Updated to latest model
                 messages=[
                     {"role": "system", "content": "You are an expert interview assessor."},
                     {"role": "user", "content": prompt}
@@ -306,7 +309,13 @@ def submit_answer(question_id):
             )
 
             feedback_data = response.choices[0].message.content
-            feedback_dict = json.loads(feedback_data)
+            logging.info(f"Received feedback from OpenAI: {feedback_data}")
+
+            try:
+                feedback_dict = json.loads(feedback_data)
+            except json.JSONDecodeError as e:
+                logging.error(f"Failed to parse OpenAI response as JSON: {str(e)}")
+                return jsonify({'error': 'Invalid feedback format from AI'}), 500
 
             practice.score = feedback_dict.get('score', 0)
             practice.ai_feedback = feedback_dict.get('feedback', '')
@@ -327,6 +336,7 @@ def submit_answer(question_id):
 
         except Exception as e:
             logging.error(f"Error generating AI feedback: {str(e)}")
+            db.session.rollback()
             return jsonify({'error': 'Failed to generate AI feedback'}), 500
 
     except Exception as e:
