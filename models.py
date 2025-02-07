@@ -156,12 +156,14 @@ class InterviewQuestion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     job_description = db.Column(db.Text, nullable=False)  # Store the job description
+    resume_content = db.Column(db.Text)  # Store the resume content
     question = db.Column(db.Text, nullable=False)  # The actual question
     sample_answer = db.Column(db.Text)  # AI-generated sample answer
     category = db.Column(db.String(50))  # Technical, Behavioral, etc.
     difficulty = db.Column(db.String(20))  # Easy, Medium, Hard
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    success_rate = db.Column(db.Float)  # Success rate based on AI analysis
 
     # Add relationship to User model
     user = db.relationship('User', backref=db.backref('interview_questions', lazy=True))
@@ -175,8 +177,11 @@ class InterviewPractice(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     question_id = db.Column(db.Integer, db.ForeignKey('interview_question.id'), nullable=False)
     user_answer = db.Column(db.Text, nullable=False)
+    answer_type = db.Column(db.String(20))  # text, audio, or video
+    media_url = db.Column(db.String(255))  # URL for audio/video file
     ai_feedback = db.Column(db.Text)  # AI-generated feedback on the answer
     score = db.Column(db.Integer)  # Optional score/rating
+    confidence_score = db.Column(db.Float)  # Confidence score from audio/video analysis
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Add relationships

@@ -7,12 +7,16 @@
             <div class="card">
                 <div class="card-body">
                     <h2 class="card-title">Interview Practice</h2>
-                    <p class="text-muted">Practice interview questions tailored to your job description with AI feedback</p>
-                    
-                    <!-- Job Description Input -->
+                    <p class="text-muted">Practice interview questions tailored to your job description and resume with AI feedback</p>
+
+                    <!-- Job Description and Resume Input -->
                     <div class="mb-4">
                         <label for="jobDescription" class="form-label">Enter Job Description</label>
                         <textarea class="form-control mb-2" id="jobDescription" rows="4" placeholder="Paste the job description here..."></textarea>
+
+                        <label for="resume" class="form-label">Upload Resume or Paste Content</label>
+                        <textarea class="form-control mb-2" id="resume" rows="4" placeholder="Paste your resume content here..."></textarea>
+
                         <button class="btn btn-primary" onclick="generateQuestions()">
                             <i data-feather="cpu"></i> Generate Questions
                         </button>
@@ -36,7 +40,13 @@
                             <h6 class="mb-1">{{ question.category }}</h6>
                             <small class="text-muted">{{ question.difficulty }}</small>
                         </div>
-                        <p class="mb-1">{{ question.question[:100] }}...</p>
+                        <p class="mb-1">{{ question.question }}</p>
+                        {% if question.success_rate %}
+                        <div class="progress mt-2" style="height: 5px;">
+                            <div class="progress-bar" role="progressbar" style="width: {{ question.success_rate }}%"></div>
+                        </div>
+                        <small class="text-muted">Match Rate: {{ "%.1f"|format(question.success_rate) }}%</small>
+                        {% endif %}
                     </button>
                     {% endfor %}
                 </div>
@@ -49,11 +59,56 @@
                     <h5 class="card-title mb-0" id="currentQuestion"></h5>
                 </div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label for="answer" class="form-label">Your Answer</label>
-                        <textarea class="form-control" id="answer" rows="6" placeholder="Type your answer here..."></textarea>
+                    <!-- Answer Type Selection -->
+                    <div class="btn-group mb-3" role="group">
+                        <input type="radio" class="btn-check" name="answerType" id="typeText" value="text" checked>
+                        <label class="btn btn-outline-primary" for="typeText">Text</label>
+
+                        <input type="radio" class="btn-check" name="answerType" id="typeAudio" value="audio">
+                        <label class="btn btn-outline-primary" for="typeAudio">Audio</label>
+
+                        <input type="radio" class="btn-check" name="answerType" id="typeVideo" value="video">
+                        <label class="btn btn-outline-primary" for="typeVideo">Video</label>
                     </div>
-                    <button class="btn btn-success" onclick="submitAnswer()">
+
+                    <!-- Text Answer Area -->
+                    <div id="textAnswer">
+                        <div class="mb-3">
+                            <label for="answer" class="form-label">Your Answer</label>
+                            <textarea class="form-control" id="answer" rows="6" placeholder="Type your answer here..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Audio Recording Area -->
+                    <div id="audioAnswer" style="display: none;">
+                        <div class="d-flex align-items-center mb-3">
+                            <button class="btn btn-primary me-2" id="startAudio" onclick="startRecording('audio')">
+                                <i data-feather="mic"></i> Start Recording
+                            </button>
+                            <button class="btn btn-danger me-2" id="stopAudio" onclick="stopRecording('audio')" style="display: none;">
+                                <i data-feather="square"></i> Stop
+                            </button>
+                            <small class="text-muted" id="audioTimer"></small>
+                        </div>
+                        <audio id="audioPlayback" controls style="display: none;"></audio>
+                    </div>
+
+                    <!-- Video Recording Area -->
+                    <div id="videoAnswer" style="display: none;">
+                        <div class="d-flex align-items-center mb-3">
+                            <button class="btn btn-primary me-2" id="startVideo" onclick="startRecording('video')">
+                                <i data-feather="video"></i> Start Recording
+                            </button>
+                            <button class="btn btn-danger me-2" id="stopVideo" onclick="stopRecording('video')" style="display: none;">
+                                <i data-feather="square"></i> Stop
+                            </button>
+                            <small class="text-muted" id="videoTimer"></small>
+                        </div>
+                        <video id="videoPreview" style="display: none;" width="100%" muted></video>
+                        <video id="videoPlayback" controls style="display: none;" width="100%"></video>
+                    </div>
+
+                    <button class="btn btn-success mt-3" onclick="submitAnswer()">
                         <i data-feather="check-circle"></i> Submit Answer
                     </button>
                 </div>
@@ -76,9 +131,89 @@
 {% block scripts %}
 <script>
 let currentQuestionId = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let startTime = null;
+let timerInterval = null;
+
+function updateTimer(type) {
+    if (!startTime) return;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    document.getElementById(`${type}Timer`).textContent = 
+        `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function startRecording(type) {
+    const constraints = {
+        audio: true,
+        video: type === 'video'
+    };
+
+    navigator.mediaDevices.getUserMedia(constraints)
+        .then(stream => {
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(stream);
+
+            if (type === 'video') {
+                const preview = document.getElementById('videoPreview');
+                preview.srcObject = stream;
+                preview.style.display = 'block';
+                preview.play();
+            }
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    recordedChunks.push(e.data);
+                }
+            };
+
+            mediaRecorder.start();
+            startTime = Date.now();
+            timerInterval = setInterval(() => updateTimer(type), 1000);
+
+            document.getElementById(`start${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'none';
+            document.getElementById(`stop${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'block';
+        });
+}
+
+function stopRecording(type) {
+    if (!mediaRecorder) return;
+
+    mediaRecorder.stop();
+    clearInterval(timerInterval);
+    startTime = null;
+
+    const tracks = mediaRecorder.stream.getTracks();
+    tracks.forEach(track => track.stop());
+
+    mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, {
+            type: type === 'video' ? 'video/webm' : 'audio/webm'
+        });
+        const url = URL.createObjectURL(blob);
+
+        if (type === 'video') {
+            document.getElementById('videoPreview').style.display = 'none';
+            const playback = document.getElementById('videoPlayback');
+            playback.src = url;
+            playback.style.display = 'block';
+        } else {
+            const playback = document.getElementById('audioPlayback');
+            playback.src = url;
+            playback.style.display = 'block';
+        }
+    };
+
+    document.getElementById(`start${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'block';
+    document.getElementById(`stop${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'none';
+}
 
 function generateQuestions() {
     const jobDescription = document.getElementById('jobDescription').value;
+    const resume = document.getElementById('resume').value;
+
     if (!jobDescription) {
         alert('Please enter a job description');
         return;
@@ -89,7 +224,10 @@ function generateQuestions() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ job_description: jobDescription })
+        body: JSON.stringify({ 
+            job_description: jobDescription,
+            resume: resume 
+        })
     })
     .then(response => response.json())
     .then(data => {
@@ -111,28 +249,63 @@ function showQuestion(questionId) {
     practiceArea.style.display = 'block';
     document.getElementById('feedbackArea').style.display = 'none';
     document.getElementById('answer').value = '';
-    
+
     // Update current question text
     const questionElement = document.querySelector(`[onclick="showQuestion(${questionId})"]`);
     document.getElementById('currentQuestion').textContent = 
         questionElement.querySelector('p').textContent;
+
+    // Reset recording elements
+    document.getElementById('audioPlayback').style.display = 'none';
+    document.getElementById('videoPlayback').style.display = 'none';
+    document.getElementById('videoPreview').style.display = 'none';
 }
+
+// Handle answer type selection
+document.querySelectorAll('input[name="answerType"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        document.getElementById('textAnswer').style.display = 
+            e.target.value === 'text' ? 'block' : 'none';
+        document.getElementById('audioAnswer').style.display = 
+            e.target.value === 'audio' ? 'block' : 'none';
+        document.getElementById('videoAnswer').style.display = 
+            e.target.value === 'video' ? 'block' : 'none';
+    });
+});
 
 function submitAnswer() {
     if (!currentQuestionId) return;
-    
-    const answer = document.getElementById('answer').value;
-    if (!answer) {
-        alert('Please provide an answer');
-        return;
+
+    const answerType = document.querySelector('input[name="answerType"]:checked').value;
+    let answer = '';
+    let mediaBlob = null;
+
+    if (answerType === 'text') {
+        answer = document.getElementById('answer').value;
+        if (!answer) {
+            alert('Please provide an answer');
+            return;
+        }
+    } else {
+        const mediaElement = document.getElementById(`${answerType}Playback`);
+        if (!mediaElement.src) {
+            alert('Please record your answer first');
+            return;
+        }
+        // Convert recorded media to blob for upload
+        mediaBlob = recordedChunks.length ? new Blob(recordedChunks) : null;
+    }
+
+    const formData = new FormData();
+    formData.append('answer_type', answerType);
+    formData.append('answer', answer);
+    if (mediaBlob) {
+        formData.append('media_file', mediaBlob);
     }
 
     fetch(`/interview-practice/${currentQuestionId}/answer`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ answer: answer })
+        body: formData
     })
     .then(response => response.json())
     .then(data => {
@@ -151,7 +324,7 @@ function submitAnswer() {
 function showFeedback(feedback) {
     const feedbackArea = document.getElementById('feedbackArea');
     const feedbackContent = document.getElementById('feedbackContent');
-    
+
     // Create feedback HTML
     const html = `
         <div class="mb-3">
@@ -181,7 +354,7 @@ function showFeedback(feedback) {
             </div>
         </div>
     `;
-    
+
     feedbackContent.innerHTML = html;
     feedbackArea.style.display = 'block';
 }

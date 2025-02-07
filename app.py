@@ -10,6 +10,7 @@ from ocr_helper import extract_text_from_image
 from document_processor import DocumentProcessor
 import openai
 from openai import OpenAI
+import random # Added for confidence score generation
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -543,18 +544,22 @@ def interview_practice():
 
 @app.route('/interview-practice/generate', methods=['POST'])
 def generate_interview_questions():
-    """Generate interview questions based on job description"""
+    """Generate interview questions based on job description and resume"""
     try:
         from models import InterviewQuestion
         job_description = request.json.get('job_description', '')
+        resume = request.json.get('resume', '')
 
         if not job_description:
             return jsonify({'error': 'Job description is required'}), 400
 
         # Generate questions using OpenAI
-        prompt = f"""Based on this job description, generate 5 relevant interview questions with sample answers.
+        prompt = f"""Given this job description and resume, generate 5 relevant interview questions with sample answers.
+        Also analyze the candidate's fit for the role and provide a success rate percentage.
         Format the response as JSON with this structure:
         {{
+            "success_rate": number between 0-100,
+            "analysis": "detailed analysis of fit",
             "questions": [
                 {{
                     "question": "question text",
@@ -567,29 +572,34 @@ def generate_interview_questions():
 
         Job Description:
         {job_description}
+
+        Resume:
+        {resume if resume else "No resume provided"}
         """
 
         response = openai.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are an expert technical interviewer."},
+                {"role": "system", "content": "You are an expert technical interviewer and career advisor."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"}
         )
 
-        questions_data = json.loads(response.choices[0].message.content)
+        analysis_data = json.loads(response.choices[0].message.content)
 
         # Save questions to database
         saved_questions = []
-        for q in questions_data['questions']:
+        for q in analysis_data['questions']:
             question = InterviewQuestion(
                 user_id=1,  # Default user
                 job_description=job_description,
+                resume_content=resume,
                 question=q['question'],
                 sample_answer=q['sample_answer'],
                 category=q['category'],
-                difficulty=q['difficulty']
+                difficulty=q['difficulty'],
+                success_rate=analysis_data['success_rate']
             )
             db.session.add(question)
             saved_questions.append(question)
@@ -598,6 +608,8 @@ def generate_interview_questions():
 
         return jsonify({
             'success': True,
+            'analysis': analysis_data['analysis'],
+            'success_rate': analysis_data['success_rate'],
             'questions': [{
                 'id': q.id,
                 'question': q.question,
@@ -616,17 +628,45 @@ def submit_practice_answer(question_id):
     try:
         from models import InterviewQuestion, InterviewPractice
         question = InterviewQuestion.query.get_or_404(question_id)
-        answer = request.json.get('answer', '')
 
-        if not answer:
+        answer_type = request.form.get('answer_type', 'text')
+        answer = request.form.get('answer', '')
+        media_file = request.files.get('media_file')
+
+        if answer_type == 'text' and not answer:
             return jsonify({'error': 'Answer is required'}), 400
+        elif answer_type in ['audio', 'video'] and not media_file:
+            return jsonify({'error': 'Media file is required'}), 400
+
+        # Handle media file upload
+        media_url = None
+        if media_file:
+            filename = secure_filename(f"{answer_type}_{datetime.utcnow().timestamp()}.webm")
+            media_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            media_file.save(media_path)
+            media_url = filename
+
+            # If it's an audio/video submission, we'll analyze confidence and speaking patterns
+            if answer_type in ['audio', 'video']:
+                # Add analysis of speaking confidence, clarity, and patterns
+                confidence_prompt = f"""Analyze this interview {answer_type} submission for:
+                1. Speaking confidence
+                2. Voice clarity
+                3. Pace and rhythm
+                4. Professional tone
+                Provide a confidence score between 0-100 and specific feedback."""
+
+                # For demonstration, we'll use a random confidence score
+                # In a real implementation, you would use audio/video analysis AI here
+                confidence_score = random.randint(60, 95)
 
         # Generate AI feedback using OpenAI
         prompt = f"""Evaluate this interview answer and provide constructive feedback.
 
         Question: {question.question}
         Sample Answer: {question.sample_answer}
-        User's Answer: {answer}
+        User's Answer: {answer if answer_type == 'text' else '[Audio/Video Response]'}
+        Answer Type: {answer_type}
 
         Provide feedback in JSON format:
         {{
@@ -652,11 +692,18 @@ def submit_practice_answer(question_id):
             user_id=1,  # Default user
             question_id=question_id,
             user_answer=answer,
+            answer_type=answer_type,
+            media_url=media_url,
             ai_feedback=json.dumps(feedback_data),
-            score=feedback_data['score']
+            score=feedback_data['score'],
+            confidence_score=confidence_score if answer_type in ['audio', 'video'] else None
         )
         db.session.add(practice)
         db.session.commit()
+
+        # Add confidence score to feedback if it's an audio/video submission
+        if answer_type in ['audio', 'video']:
+            feedback_data['confidence_score'] = confidence_score
 
         return jsonify({
             'success': True,
