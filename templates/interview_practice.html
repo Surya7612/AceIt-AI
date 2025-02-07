@@ -206,7 +206,11 @@
 
 {% block scripts %}
 <script>
-// Helper function to create question element
+/**
+ * Creates and returns an HTML element for a question
+ * @param {Object} question - The question object containing id, category, difficulty, etc.
+ * @returns {string} HTML string for the question element
+ */
 function createQuestionElement(question) {
     return `
         <button class="list-group-item list-group-item-action" onclick="showQuestion(${question.id})">
@@ -225,7 +229,10 @@ function createQuestionElement(question) {
     `;
 }
 
-// Generate questions function
+/**
+ * Generates interview questions based on job description and resume
+ * Sends request to backend and updates UI with questions and compatibility analysis
+ */
 window.generateQuestions = function() {
     const jobDescription = document.getElementById('jobDescription').value;
     const resume = document.getElementById('resume').value;
@@ -265,7 +272,7 @@ window.generateQuestions = function() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Show success message
+            // Show success message and update UI
             loadingSection.style.display = 'none';
             successSection.style.display = 'block';
 
@@ -282,19 +289,7 @@ window.generateQuestions = function() {
             compatibilityScore.setAttribute('aria-valuenow', data.compatibility_ranking.score);
 
             // Update strengths and gaps
-            const strengthsList = document.getElementById('strengthsList');
-            const gapsList = document.getElementById('gapsList');
-
-            strengthsList.innerHTML = data.compatibility_ranking.strengths
-                .map(strength => `<li><i data-feather="check-circle" class="text-success me-2"></i>${strength}</li>`)
-                .join('');
-
-            gapsList.innerHTML = data.compatibility_ranking.gaps
-                .map(gap => `<li><i data-feather="alert-circle" class="text-warning me-2"></i>${gap}</li>`)
-                .join('');
-
-            // Refresh Feather icons
-            feather.replace();
+            updateCompatibilityDetails(data.compatibility_ranking);
         } else {
             alert('Error generating questions: ' + data.error);
         }
@@ -304,7 +299,7 @@ window.generateQuestions = function() {
         alert('Failed to generate questions');
     })
     .finally(() => {
-        // Hide loading indicator and enable generate button
+        // Reset UI state
         generateBtn.disabled = false;
         loadingSection.style.display = 'none';
     });
@@ -316,11 +311,15 @@ let recordedChunks = [];
 let startTime = null;
 let timerInterval = null;
 
-// Helper function to handle resume file upload
+/**
+ * Handles file upload for resume
+ * Processes text files directly and shows placeholder for other formats
+ */
 function handleResumeFile() {
     const fileInput = document.getElementById('resumeFile');
     const resumeTextArea = document.getElementById('resume');
     const file = fileInput.files[0];
+    const uploadButton = document.getElementById('uploadButton');
 
     if (!file) {
         alert('Please select a file first');
@@ -332,7 +331,6 @@ function handleResumeFile() {
         reader.onload = function(e) {
             resumeTextArea.value = e.target.result;
             // Show success feedback
-            const uploadButton = document.getElementById('uploadButton');
             uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
             uploadButton.classList.add('btn-success');
             uploadButton.classList.remove('btn-outline-secondary');
@@ -349,9 +347,26 @@ function handleResumeFile() {
         reader.readAsText(file);
     } else {
         resumeTextArea.value = `[Content from: ${file.name}]`;
+        // Show success feedback even for non-text files
+        uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
+        uploadButton.classList.add('btn-success');
+        uploadButton.classList.remove('btn-outline-secondary');
+        feather.replace();
+
+        // Reset button after 2 seconds
+        setTimeout(() => {
+            uploadButton.innerHTML = '<i data-feather="upload"></i> Upload';
+            uploadButton.classList.remove('btn-success');
+            uploadButton.classList.add('btn-outline-secondary');
+            feather.replace();
+        }, 2000);
     }
 }
 
+/**
+ * Updates the recording timer display
+ * @param {string} type - Type of recording (audio/video)
+ */
 function updateTimer(type) {
     if (!startTime) return;
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -361,6 +376,10 @@ function updateTimer(type) {
         `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Starts recording audio or video
+ * @param {string} type - Type of recording (audio/video)
+ */
 function startRecording(type) {
     const constraints = {
         audio: true,
@@ -378,7 +397,6 @@ function startRecording(type) {
     navigator.mediaDevices.getUserMedia(constraints)
         .then(stream => {
             recordedChunks = [];
-            // Set proper MIME type for audio/video
             const mimeType = type === 'video' ? 'video/webm;codecs=vp8,opus' : 'audio/webm;codecs=opus';
 
             try {
@@ -399,42 +417,14 @@ function startRecording(type) {
                 preview.play().catch(e => console.error('Preview playback error:', e));
             }
 
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data && e.data.size > 0) {
-                    recordedChunks.push(e.data);
-                }
-            };
+            setupMediaRecorder(type);
 
-            mediaRecorder.onstop = () => {
-                if (recordedChunks.length === 0) {
-                    console.error('No data recorded');
-                    return;
-                }
-
-                const blob = new Blob(recordedChunks, {
-                    type: mediaRecorder.mimeType
-                });
-                const url = URL.createObjectURL(blob);
-
-                if (type === 'video') {
-                    document.getElementById('videoPreview').style.display = 'none';
-                    const playback = document.getElementById('videoPlayback');
-                    playback.src = url;
-                    playback.style.display = 'block';
-                } else {
-                    const playback = document.getElementById('audioPlayback');
-                    playback.src = url;
-                    playback.style.display = 'block';
-                }
-            };
-
-            // Request data every second
+            // Start recording
             mediaRecorder.start(1000);
             startTime = Date.now();
             timerInterval = setInterval(() => updateTimer(type), 1000);
 
-            document.getElementById(`start${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'none';
-            document.getElementById(`stop${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'block';
+            updateRecordingUI(type, true);
         })
         .catch(error => {
             console.error('Error accessing media devices:', error);
@@ -442,6 +432,10 @@ function startRecording(type) {
         });
 }
 
+/**
+ * Stops the current recording session
+ * @param {string} type - Type of recording (audio/video)
+ */
 function stopRecording(type) {
     if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
 
@@ -452,9 +446,47 @@ function stopRecording(type) {
     const tracks = mediaRecorder.stream.getTracks();
     tracks.forEach(track => track.stop());
 
-    document.getElementById(`start${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'block';
-    document.getElementById(`stop${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'none';
+    updateRecordingUI(type, false);
 }
+
+// Helper function to setup media recorder event listeners
+function setupMediaRecorder(type) {
+    mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+            recordedChunks.push(e.data);
+        }
+    };
+
+    mediaRecorder.onstop = () => {
+        if (recordedChunks.length === 0) {
+            console.error('No data recorded');
+            return;
+        }
+
+        const blob = new Blob(recordedChunks, {
+            type: mediaRecorder.mimeType
+        });
+        const url = URL.createObjectURL(blob);
+
+        if (type === 'video') {
+            document.getElementById('videoPreview').style.display = 'none';
+            const playback = document.getElementById('videoPlayback');
+            playback.src = url;
+            playback.style.display = 'block';
+        } else {
+            const playback = document.getElementById('audioPlayback');
+            playback.src = url;
+            playback.style.display = 'block';
+        }
+    };
+}
+
+// Helper function to update recording UI elements
+function updateRecordingUI(type, isRecording) {
+    document.getElementById(`start${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = isRecording ? 'none' : 'block';
+    document.getElementById(`stop${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = isRecording ? 'block' : 'none';
+}
+
 
 function showQuestion(questionId) {
     currentQuestionId = questionId;
@@ -486,6 +518,10 @@ document.querySelectorAll('input[name="answerType"]').forEach(radio => {
     });
 });
 
+/**
+ * Submits the user's answer to the backend
+ * Handles text and media submissions
+ */
 function submitAnswer() {
     if (!currentQuestionId) return;
 
@@ -547,6 +583,10 @@ function submitAnswer() {
     });
 }
 
+/**
+ * Displays the AI feedback to the user
+ * @param {Object} feedback - The feedback object from the backend
+ */
 function showFeedback(feedback) {
     const feedbackArea = document.getElementById('feedbackArea');
     const feedbackContent = document.getElementById('feedbackContent');
@@ -588,6 +628,9 @@ function showFeedback(feedback) {
     feedbackArea.style.display = 'block';
 }
 
+/**
+ * Exports the interview practice data as a JSON file
+ */
 function exportData() {
     fetch('/interview-practice/export', {
         method: 'POST'
@@ -615,6 +658,9 @@ function exportData() {
     });
 }
 
+/**
+ * Clears all interview practice data
+ */
 function clearData() {
     if (!confirm('Are you sure you want to clear all interview practice data? This cannot be undone.')) {
         return;
@@ -637,7 +683,28 @@ function clearData() {
     });
 }
 
-// Initialize Feather icons and clear question list on page load/refresh
+
+/**
+ * Updates the compatibility details section with strengths and gaps
+ * @param {Object} compatibilityRanking - The compatibility ranking object
+ */
+function updateCompatibilityDetails(compatibilityRanking) {
+    const strengthsList = document.getElementById('strengthsList');
+    const gapsList = document.getElementById('gapsList');
+
+    strengthsList.innerHTML = compatibilityRanking.strengths
+        .map(strength => `<li><i data-feather="check-circle" class="text-success me-2"></i>${strength}</li>`)
+        .join('');
+
+    gapsList.innerHTML = compatibilityRanking.gaps
+        .map(gap => `<li><i data-feather="alert-circle" class="text-warning me-2"></i>${gap}</li>`)
+        .join('');
+
+    // Refresh Feather icons
+    feather.replace();
+}
+
+// Initialize page on load
 document.addEventListener('DOMContentLoaded', function() {
     // Clear questions list on page load/refresh
     document.getElementById('questionsList').innerHTML = '';
@@ -647,9 +714,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize Feather icons
     feather.replace();
+
+    // Attach both file input and button click handlers
     const fileInput = document.getElementById('resumeFile');
+    const uploadButton = document.getElementById('uploadButton');
+
     if (fileInput) {
         fileInput.addEventListener('change', handleResumeFile);
+    }
+
+    if (uploadButton) {
+        uploadButton.addEventListener('click', handleResumeFile);
     }
 });
 </script>
