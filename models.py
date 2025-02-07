@@ -27,6 +27,12 @@ class StudyPlan(db.Model):
     schedule = db.Column(db.Text)  # JSON field for storing study schedule
     difficulty_level = db.Column(db.String(20))  # beginner, intermediate, advanced
     last_studied = db.Column(db.DateTime)  # Track last study session
+    total_study_time = db.Column(db.Integer, default=0)  # Total minutes spent studying
+
+    # Relationships
+    documents = db.relationship('Document', secondary='study_plan_documents', 
+                              backref=db.backref('study_plans', lazy=True))
+    study_sessions = db.relationship('StudySession', backref='study_plan', lazy=True)
 
     __table_args__ = (
         Index('idx_study_plan_user_id_created', 'user_id', 'created_at'),
@@ -43,6 +49,42 @@ class StudyPlan(db.Model):
         """Update study schedule"""
         self.schedule = json.dumps(schedule_data)
         self.updated_at = datetime.utcnow()
+
+    def update_study_time(self, minutes):
+        """Update total study time"""
+        self.total_study_time += minutes
+        self.last_studied = datetime.utcnow()
+        # Update progress based on total time vs target time
+        if self.daily_study_time:
+            target_total = self.daily_study_time * (self.completion_target - self.created_at).days
+            self.progress = min(100, int((self.total_study_time / target_total) * 100))
+
+class StudySession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    study_plan_id = db.Column(db.Integer, db.ForeignKey('study_plan.id'), nullable=False)
+    start_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    end_time = db.Column(db.DateTime)
+    duration_minutes = db.Column(db.Integer)  # Duration in minutes
+    notes = db.Column(db.Text)  # Optional session notes
+
+    __table_args__ = (
+        Index('idx_study_session_plan_start', 'study_plan_id', 'start_time'),
+    )
+
+    def complete_session(self, notes=None):
+        """Complete the study session and calculate duration"""
+        self.end_time = datetime.utcnow()
+        self.duration_minutes = int((self.end_time - self.start_time).total_seconds() / 60)
+        if notes:
+            self.notes = notes
+        # Update study plan's total time
+        self.study_plan.update_study_time(self.duration_minutes)
+
+# Association table for study plans and documents
+study_plan_documents = db.Table('study_plan_documents',
+    db.Column('study_plan_id', db.Integer, db.ForeignKey('study_plan.id'), primary_key=True),
+    db.Column('document_id', db.Integer, db.ForeignKey('document.id'), primary_key=True)
+)
 
 class Document(db.Model):
     id = db.Column(db.Integer, primary_key=True)

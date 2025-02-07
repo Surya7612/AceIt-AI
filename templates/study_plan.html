@@ -9,7 +9,7 @@
                 <h5 class="mb-0">Create New Study Plan</h5>
             </div>
             <div class="card-body">
-                <form id="study-plan-form">
+                <form id="study-plan-form" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label for="topic" class="form-label">Topic or Subject</label>
                         <input type="text" class="form-control" id="topic" required>
@@ -43,6 +43,21 @@
                     <div class="mb-3">
                         <label for="goals" class="form-label">Learning Goals</label>
                         <textarea class="form-control" id="goals" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Study Materials</label>
+                        <div class="input-group mb-3">
+                            <input type="file" class="form-control" id="files" name="files" multiple
+                                   accept=".pdf,.png,.jpg,.jpeg">
+                        </div>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="link" name="link" 
+                                   placeholder="Or paste a URL to study material">
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            Upload files or paste URLs to create an AI-optimized study plan.
+                            If no materials are provided, AI will generate content based on your topic.
+                        </small>
                     </div>
                     <button type="submit" class="btn btn-primary">
                         <i data-feather="plus-circle"></i> Create Plan
@@ -84,6 +99,11 @@
                                             <small class="text-muted">
                                                 {{ plan.daily_study_time }} min/day
                                             </small>
+                                            {% if plan.total_study_time %}
+                                            <small class="text-muted">
+                                                Total: {{ plan.total_study_time }} minutes
+                                            </small>
+                                            {% endif %}
                                         </div>
                                     </div>
                                     <div class="text-end">
@@ -123,22 +143,30 @@ document.addEventListener('DOMContentLoaded', function() {
     studyPlanForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const formData = {
-            topic: document.getElementById('topic').value,
-            priority: document.getElementById('priority').value,
-            daily_time: document.getElementById('daily_time').value,
-            completion_date: document.getElementById('completion_date').value,
-            difficulty: document.getElementById('difficulty').value,
-            goals: document.getElementById('goals').value
-        };
+        const formData = new FormData();
+        formData.append('topic', document.getElementById('topic').value);
+        formData.append('priority', document.getElementById('priority').value);
+        formData.append('daily_time', document.getElementById('daily_time').value);
+        formData.append('completion_date', document.getElementById('completion_date').value);
+        formData.append('difficulty', document.getElementById('difficulty').value);
+        formData.append('goals', document.getElementById('goals').value);
+
+        // Add files if any
+        const fileInput = document.getElementById('files');
+        for (let file of fileInput.files) {
+            formData.append('files', file);
+        }
+
+        // Add link if provided
+        const link = document.getElementById('link').value.trim();
+        if (link) {
+            formData.append('link', link);
+        }
 
         try {
             const response = await fetch('/study-plan/new', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(formData)
+                body: formData
             });
 
             const result = await response.json();

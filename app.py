@@ -66,34 +66,86 @@ def study_plan():
 def create_study_plan():
     if request.method == 'POST':
         try:
-            from models import StudyPlan
-            data = request.get_json()
-            if not data or not all(k in data for k in ('topic', 'priority', 'daily_time', 'completion_date', 'difficulty', 'goals')):
+            from models import StudyPlan, Document
+            # Handle form data
+            topic = request.form.get('topic')
+            priority = request.form.get('priority')
+            daily_time = request.form.get('daily_time')
+            completion_date = request.form.get('completion_date')
+            difficulty = request.form.get('difficulty')
+            goals = request.form.get('goals')
+
+            if not all([topic, priority, daily_time, completion_date, difficulty, goals]):
                 return jsonify({'error': 'Missing required fields'}), 400
+
+            documents = []
+
+            # Handle file uploads
+            uploaded_files = request.files.getlist('files')
+            for file in uploaded_files:
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(filepath)
+
+                    file_type = 'image' if filename.lower().endswith(('.png', '.jpg', '.jpeg')) else 'pdf'
+                    doc = Document(
+                        filename=filename,
+                        original_filename=file.filename,
+                        file_type=file_type,
+                        processed=False,
+                        user_id=1  # Default user
+                    )
+                    db.session.add(doc)
+                    documents.append(doc)
+
+            # Handle URL
+            link = request.form.get('link')
+            if link:
+                doc = Document(
+                    filename=link,
+                    original_filename=link,
+                    file_type='link',
+                    content=link,
+                    processed=False,
+                    user_id=1
+                )
+                db.session.add(doc)
+                documents.append(doc)
+
+            db.session.flush()  # Get IDs for the documents
+
+            # Start processing documents in background
+            from celery_worker import process_document_task
+            for doc in documents:
+                process_document_task.delay(doc.id)
 
             # Generate optimized study schedule
             schedule = generate_study_schedule(
-                topic=data['topic'],
-                priority=int(data['priority']),
-                daily_time=int(data['daily_time']),
-                completion_date=data['completion_date'],
-                difficulty=data['difficulty'],
-                goals=data['goals']
+                topic=topic,
+                priority=int(priority),
+                daily_time=int(daily_time),
+                completion_date=completion_date,
+                difficulty=difficulty,
+                goals=goals
             )
 
             # Create study plan
             study_plan = StudyPlan(
-                title=data['topic'],
-                category='General',  # Will be updated by AI processing
+                title=topic,
+                category='General',  # Will be updated based on documents
                 content=json.dumps(schedule),
                 user_id=1,  # Default user
-                priority=int(data['priority']),
-                daily_study_time=int(data['daily_time']),
-                difficulty_level=data['difficulty'],
-                completion_target=datetime.strptime(data['completion_date'], '%Y-%m-%d'),
+                priority=int(priority),
+                daily_study_time=int(daily_time),
+                difficulty_level=difficulty,
+                completion_target=datetime.strptime(completion_date, '%Y-%m-%d'),
                 schedule=json.dumps(schedule.get('daily_sessions', [])),
                 progress=0
             )
+
+            # Associate documents with study plan
+            study_plan.documents.extend(documents)
 
             db.session.add(study_plan)
             db.session.commit()
@@ -104,6 +156,50 @@ def create_study_plan():
             return jsonify({'error': str(e)}), 500
 
     return render_template('study_plan.html')
+
+@app.route('/study-plan/<int:plan_id>/session/start', methods=['POST'])
+def start_study_session(plan_id):
+    try:
+        from models import StudyPlan, StudySession
+        study_plan = StudyPlan.query.get_or_404(plan_id)
+
+        # Create new study session
+        session = StudySession(study_plan_id=plan_id)
+        db.session.add(session)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'session_id': session.id,
+            'start_time': session.start_time.isoformat()
+        })
+    except Exception as e:
+        logging.error(f"Error starting study session: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/study-plan/<int:plan_id>/session/<int:session_id>/end', methods=['POST'])
+def end_study_session(plan_id, session_id):
+    try:
+        from models import StudySession
+        session = StudySession.query.get_or_404(session_id)
+
+        # Verify session belongs to the correct plan
+        if session.study_plan_id != plan_id:
+            return jsonify({'error': 'Invalid session ID'}), 400
+
+        notes = request.json.get('notes', '')
+        session.complete_session(notes)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'duration_minutes': session.duration_minutes,
+            'total_study_time': session.study_plan.total_study_time,
+            'progress': session.study_plan.progress
+        })
+    except Exception as e:
+        logging.error(f"Error ending study session: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 # Initialize document processor
 doc_processor = DocumentProcessor()
