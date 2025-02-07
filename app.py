@@ -45,7 +45,7 @@ def interview_practice():
 def generate_interview_questions():
     """Generate interview questions based on job description"""
     try:
-        from models import InterviewQuestion
+        from models import InterviewQuestion, InterviewPractice
         logging.info("Starting question generation process")
 
         data = request.get_json()
@@ -63,7 +63,17 @@ def generate_interview_questions():
             client = OpenAI()
             logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
 
-            # Clear existing questions
+            # First get existing practices to avoid FK constraint violation
+            existing_practices = InterviewPractice.query.join(InterviewQuestion).filter(
+                InterviewQuestion.user_id == 1
+            ).all()
+
+            # Delete practices first
+            for practice in existing_practices:
+                db.session.delete(practice)
+            db.session.commit()
+
+            # Now safe to delete questions
             InterviewQuestion.query.filter_by(user_id=1).delete()
             db.session.commit()
 
@@ -83,7 +93,7 @@ Provide a JSON response with:
 
             try:
                 analysis_response = client.chat.completions.create(
-                    model="gpt-4o",  # Updated to latest model
+                    model="gpt-4",  # Using correct model name
                     messages=[
                         {"role": "system", "content": "You are an expert job matcher."},
                         {"role": "user", "content": analysis_prompt}
@@ -114,7 +124,7 @@ Difficulty: [Easy/Medium/Hard]
 """
 
             response = client.chat.completions.create(
-                model="gpt-4o",  # Updated to latest model
+                model="gpt-4",  # Using correct model name
                 messages=[
                     {"role": "system", "content": "You are an expert interviewer. Format your response exactly as shown in the prompt."},
                     {"role": "user", "content": questions_prompt}
@@ -163,24 +173,29 @@ Difficulty: [Easy/Medium/Hard]
 
             # Save questions to database
             saved_questions = []
-            for q in questions:
-                if 'question' not in q:
-                    continue
+            try:
+                for q in questions:
+                    if 'question' not in q:
+                        continue
 
-                question = InterviewQuestion(
-                    user_id=1,
-                    question=q['question'],
-                    sample_answer=q.get('sample_answer', 'Not provided'),
-                    category=q.get('category', 'General'),
-                    difficulty=q.get('difficulty', 'Medium'),
-                    job_description=job_description,
-                    success_rate=random.randint(75, 95)  # Sample success rate
-                )
-                db.session.add(question)
-                saved_questions.append(question)
+                    question = InterviewQuestion(
+                        user_id=1,
+                        question=q['question'],
+                        sample_answer=q.get('sample_answer', 'Not provided'),
+                        category=q.get('category', 'General'),
+                        difficulty=q.get('difficulty', 'Medium'),
+                        job_description=job_description,
+                        success_rate=random.randint(75, 95)  # Sample success rate
+                    )
+                    db.session.add(question)
+                    saved_questions.append(question)
 
-            db.session.commit()
-            logging.info(f"Successfully saved {len(saved_questions)} questions")
+                db.session.commit()
+                logging.info(f"Successfully saved {len(saved_questions)} questions")
+            except Exception as db_error:
+                logging.error(f"Database error: {str(db_error)}")
+                db.session.rollback()
+                return jsonify({'error': 'Failed to save questions to database'}), 500
 
             return jsonify({
                 'success': True,
@@ -306,7 +321,7 @@ Provide feedback in JSON format with these fields:
 
             logging.info("Sending feedback request to OpenAI")
             response = client.chat.completions.create(
-                model="gpt-4o",  # Updated to latest model
+                model="gpt-4",  # Updated to latest model
                 messages=[
                     {"role": "system", "content": "You are an expert interview assessor."},
                     {"role": "user", "content": prompt}
