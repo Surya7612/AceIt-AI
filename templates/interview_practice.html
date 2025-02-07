@@ -204,7 +204,8 @@ let recordedChunks = [];
 let startTime = null;
 let timerInterval = null;
 
-function handleResumeFile() {
+// Fix handleResumeFile to be async
+async function handleResumeFile() {
     const fileInput = document.getElementById('resumeFile');
     const file = fileInput.files[0];
     if (!file) {
@@ -298,7 +299,8 @@ function stopRecording(type) {
     document.getElementById(`stop${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'none';
 }
 
-function generateQuestions() {
+// Fix generateQuestions function
+window.generateQuestions = function() {
     const jobDescription = document.getElementById('jobDescription').value;
     const resume = document.getElementById('resume').value;
 
