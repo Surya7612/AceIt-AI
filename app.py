@@ -493,9 +493,11 @@ def folders():
             logging.error(f"Error creating folder: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
-    from models import Folder
+    from models import Folder, StudyPlan, Document
     folders = Folder.query.filter_by(user_id=1).all()
-    return render_template('folders.html', folders=folders)
+    study_plans = StudyPlan.query.filter_by(user_id=1).all()
+    documents = Document.query.filter_by(user_id=1).all()
+    return render_template('folders.html', folders=folders, study_plans=study_plans, documents=documents)
 
 @app.route('/folders/<int:folder_id>/items', methods=['POST'])
 def update_folder_items(folder_id):
