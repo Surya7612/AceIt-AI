@@ -355,26 +355,41 @@ function startRecording(type) {
     navigator.mediaDevices.getUserMedia(constraints)
         .then(stream => {
             recordedChunks = [];
-            mediaRecorder = new MediaRecorder(stream, {
-                mimeType: type === 'video' ? 'video/webm' : 'audio/webm'
-            });
+            // Set proper MIME type for audio/video
+            const mimeType = type === 'video' ? 'video/webm;codecs=vp8,opus' : 'audio/webm;codecs=opus';
+
+            try {
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: mimeType,
+                    audioBitsPerSecond: 128000
+                });
+            } catch (e) {
+                console.error('MediaRecorder error:', e);
+                alert('Your browser may not support recording. Please try a different browser.');
+                return;
+            }
 
             if (type === 'video') {
                 const preview = document.getElementById('videoPreview');
                 preview.srcObject = stream;
                 preview.style.display = 'block';
-                preview.play();
+                preview.play().catch(e => console.error('Preview playback error:', e));
             }
 
             mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
+                if (e.data && e.data.size > 0) {
                     recordedChunks.push(e.data);
                 }
             };
 
             mediaRecorder.onstop = () => {
+                if (recordedChunks.length === 0) {
+                    console.error('No data recorded');
+                    return;
+                }
+
                 const blob = new Blob(recordedChunks, {
-                    type: type === 'video' ? 'video/webm' : 'audio/webm'
+                    type: mediaRecorder.mimeType
                 });
                 const url = URL.createObjectURL(blob);
 
@@ -390,7 +405,8 @@ function startRecording(type) {
                 }
             };
 
-            mediaRecorder.start();
+            // Request data every second
+            mediaRecorder.start(1000);
             startTime = Date.now();
             timerInterval = setInterval(() => updateTimer(type), 1000);
 
