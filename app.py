@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, url_for
 from werkzeug.utils import secure_filename
 from extensions import db
-from ai_helper import generate_study_plan, chat_response
+from ai_helper import chat_response, generate_study_schedule, update_study_plan
 from ocr_helper import extract_text_from_image
 from document_processor import DocumentProcessor
 
@@ -66,28 +66,39 @@ def study_plan():
 def create_study_plan():
     if request.method == 'POST':
         try:
+            from models import StudyPlan
             data = request.get_json()
-            if not data or not all(k in data for k in ('topic', 'duration', 'goals')):
+            if not data or not all(k in data for k in ('topic', 'priority', 'daily_time', 'completion_date', 'difficulty', 'goals')):
                 return jsonify({'error': 'Missing required fields'}), 400
 
-            from models import StudyPlan
-            content = generate_study_plan(
-                f"Topic: {data['topic']}\nDuration: {data['duration']} hours\nGoals: {data['goals']}"
+            # Generate optimized study schedule
+            schedule = generate_study_schedule(
+                topic=data['topic'],
+                priority=int(data['priority']),
+                daily_time=int(data['daily_time']),
+                completion_date=data['completion_date'],
+                difficulty=data['difficulty'],
+                goals=data['goals']
             )
 
             # Create study plan
             study_plan = StudyPlan(
                 title=data['topic'],
-                category='General',
-                content=content,
+                category='General',  # Will be updated by AI processing
+                content=json.dumps(schedule),
                 user_id=1,  # Default user
-                completion_target=datetime.utcnow() + timedelta(hours=int(data['duration']))
+                priority=int(data['priority']),
+                daily_study_time=int(data['daily_time']),
+                difficulty_level=data['difficulty'],
+                completion_target=datetime.strptime(data['completion_date'], '%Y-%m-%d'),
+                schedule=json.dumps(schedule.get('daily_sessions', [])),
+                progress=0
             )
 
             db.session.add(study_plan)
             db.session.commit()
 
-            return jsonify({'success': True, 'plan': content})
+            return jsonify({'success': True, 'plan': schedule})
         except Exception as e:
             logging.error(f"Study plan creation error: {str(e)}")
             return jsonify({'error': str(e)}), 500
@@ -240,6 +251,21 @@ def combine_documents():
 
     except Exception as e:
         logging.error(f"Error combining documents: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/study-plan/<int:plan_id>/update', methods=['POST'])
+def update_study_plan_schedule(plan_id):
+    try:
+        data = request.get_json()
+        if not data or 'updates' not in data:
+            return jsonify({'error': 'No updates provided'}), 400
+
+        if update_study_plan(plan_id, data['updates']):
+            return jsonify({'success': True})
+        return jsonify({'error': 'Failed to update study plan'}), 500
+
+    except Exception as e:
+        logging.error(f"Error updating study plan: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 with app.app_context():

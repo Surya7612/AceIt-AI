@@ -15,8 +15,30 @@
                         <input type="text" class="form-control" id="topic" required>
                     </div>
                     <div class="mb-3">
-                        <label for="duration" class="form-label">Study Duration (hours)</label>
-                        <input type="number" class="form-control" id="duration" min="1" max="24" required>
+                        <label for="priority" class="form-label">Priority Level</label>
+                        <select class="form-select" id="priority" required>
+                            <option value="1">High Priority</option>
+                            <option value="2" selected>Medium Priority</option>
+                            <option value="3">Low Priority</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="daily_time" class="form-label">Daily Study Time (minutes)</label>
+                        <input type="number" class="form-control" id="daily_time" 
+                               min="15" max="480" step="15" value="60" required>
+                        <small class="text-muted">Recommended: 30-120 minutes per day</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="completion_date" class="form-label">Target Completion Date</label>
+                        <input type="date" class="form-control" id="completion_date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="difficulty" class="form-label">Preferred Difficulty Level</label>
+                        <select class="form-select" id="difficulty" required>
+                            <option value="beginner">Beginner</option>
+                            <option value="intermediate" selected>Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label for="goals" class="form-label">Learning Goals</label>
@@ -52,13 +74,20 @@
                                                                 else 'secondary' }}">
                                                 {{ plan.category }}
                                             </span>
+                                            <span class="badge bg-{{ 'danger' if plan.priority == 1
+                                                                else 'warning' if plan.priority == 2
+                                                                else 'info' }}">
+                                                {{ 'High' if plan.priority == 1
+                                                   else 'Medium' if plan.priority == 2
+                                                   else 'Low' }} Priority
+                                            </span>
                                             <small class="text-muted">
-                                                Created {{ plan.created_at.strftime('%Y-%m-%d') }}
+                                                {{ plan.daily_study_time }} min/day
                                             </small>
                                         </div>
                                     </div>
                                     <div class="text-end">
-                                        <div class="progress" style="width: 100px; height: 8px;">
+                                        <div class="progress mb-1" style="width: 100px; height: 8px;">
                                             <div class="progress-bar bg-success" role="progressbar" 
                                                  style="width: {{ plan.progress }}%"
                                                  aria-valuenow="{{ plan.progress }}" 
@@ -85,12 +114,21 @@
 document.addEventListener('DOMContentLoaded', function() {
     const studyPlanForm = document.getElementById('study-plan-form');
 
+    // Set minimum date for completion target as today
+    const completionDateInput = document.getElementById('completion_date');
+    const today = new Date().toISOString().split('T')[0];
+    completionDateInput.min = today;
+    completionDateInput.value = today;
+
     studyPlanForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
         const formData = {
             topic: document.getElementById('topic').value,
-            duration: document.getElementById('duration').value,
+            priority: document.getElementById('priority').value,
+            daily_time: document.getElementById('daily_time').value,
+            completion_date: document.getElementById('completion_date').value,
+            difficulty: document.getElementById('difficulty').value,
             goals: document.getElementById('goals').value
         };
 

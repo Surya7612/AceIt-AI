@@ -22,10 +22,27 @@ class StudyPlan(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     progress = db.Column(db.Integer, default=0)  # Progress percentage
     completion_target = db.Column(db.DateTime)  # Target completion date
+    priority = db.Column(db.Integer, default=2)  # 1=High, 2=Medium, 3=Low
+    daily_study_time = db.Column(db.Integer)  # Minutes per day
+    schedule = db.Column(db.Text)  # JSON field for storing study schedule
+    difficulty_level = db.Column(db.String(20))  # beginner, intermediate, advanced
+    last_studied = db.Column(db.DateTime)  # Track last study session
 
     __table_args__ = (
         Index('idx_study_plan_user_id_created', 'user_id', 'created_at'),
     )
+
+    def get_schedule(self):
+        """Get parsed schedule data"""
+        try:
+            return json.loads(self.schedule) if self.schedule else None
+        except:
+            return None
+
+    def update_schedule(self, schedule_data):
+        """Update study schedule"""
+        self.schedule = json.dumps(schedule_data)
+        self.updated_at = datetime.utcnow()
 
 class Document(db.Model):
     id = db.Column(db.Integer, primary_key=True)
