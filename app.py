@@ -550,10 +550,15 @@ def interview_practice():
 def generate_interview_questions():
     """Generate interview questions based on job description and optional resume"""
     try:
-        from models import InterviewQuestion
-        # Clear existing questions first
-        InterviewQuestion.query.filter_by(user_id=1).delete()
+        from models import InterviewQuestion, InterviewPractice
+        user_id = 1  # Default user
+
+        # Clear existing questions and practices first
+        logging.info("Clearing existing questions and practices")
+        InterviewPractice.query.join(InterviewQuestion).filter(InterviewQuestion.user_id == user_id).delete(synchronize_session=False)
+        InterviewQuestion.query.filter_by(user_id=user_id).delete(synchronize_session=False)
         db.session.commit()
+        logging.info("Successfully cleared existing questions and practices")
 
         data = request.get_json()
         job_description = data.get('job_description', '')

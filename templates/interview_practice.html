@@ -36,9 +36,25 @@
                             <textarea class="form-control" id="resume" rows="4" placeholder="Paste your resume content here..."></textarea>
                         </div>
 
-                        <button class="btn btn-primary mt-3" onclick="generateQuestions()">
+                        <button class="btn btn-primary mt-3" onclick="generateQuestions()" id="generateBtn">
                             <i data-feather="cpu"></i> Generate Questions
                         </button>
+
+                        <!-- Add loading indicator -->
+                        <div id="loadingSection" style="display: none;" class="mt-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="spinner-border text-primary me-2" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <span>Generating interview questions...</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" 
+                                     style="width: 100%">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -291,12 +307,17 @@ function generateQuestions() {
         return;
     }
 
-    // Clear the existing questions list
-    document.getElementById('questionsList').innerHTML = '';
+    // Show loading indicator and disable generate button
+    const generateBtn = document.getElementById('generateBtn');
+    const loadingSection = document.getElementById('loadingSection');
+    generateBtn.disabled = true;
+    loadingSection.style.display = 'block';
 
-    // Hide the practice and feedback areas
+    // Clear existing questions and hide sections
+    document.getElementById('questionsList').innerHTML = '';
     document.getElementById('practiceArea').style.display = 'none';
     document.getElementById('feedbackArea').style.display = 'none';
+    document.getElementById('compatibilitySection').style.display = 'none';
 
     fetch('/interview-practice/generate', {
         method: 'POST',
@@ -331,7 +352,7 @@ function generateQuestions() {
             // Refresh icons
             feather.replace();
 
-            // Fetch updated questions
+            // Force reload with clear parameter
             window.location.href = '/interview-practice?clear=true';
         } else {
             alert('Error generating questions: ' + data.error);
@@ -340,6 +361,11 @@ function generateQuestions() {
     .catch(error => {
         console.error('Error:', error);
         alert('Failed to generate questions');
+    })
+    .finally(() => {
+        // Hide loading indicator and enable generate button
+        generateBtn.disabled = false;
+        loadingSection.style.display = 'none';
     });
 }
 
