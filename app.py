@@ -78,42 +78,61 @@ def generate_interview_questions():
             db.session.commit()
 
             # Generate compatibility analysis
-            analysis_prompt = f"""Analyze the compatibility between this job description and resume. 
-Provide your response in the following format exactly:
+            analysis_prompt = f"""As an expert job matcher, analyze the compatibility between this job description and resume.
+
+You MUST format your response as a valid JSON object with exactly these fields:
 {{
-    "score": <number between 0-100>,
-    "strengths": [<list of key matching strengths>],
-    "gaps": [<list of areas for improvement>]
+    "score": (a number between 0 and 100),
+    "strengths": ["strength1", "strength2", ...],
+    "gaps": ["gap1", "gap2", ...]
 }}
 
 Job Description:
 {job_description}
 
 Resume:
-{resume}"""
+{resume}
+
+Respond ONLY with the JSON object, no additional text."""
 
             try:
                 analysis_response = client.chat.completions.create(
                     model="gpt-4",
                     messages=[
-                        {"role": "system", "content": "You are an expert job matcher. Provide response in valid JSON format."},
+                        {"role": "system", "content": "You are an expert job matcher. You must return only valid JSON."},
                         {"role": "user", "content": analysis_prompt}
-                    ]
+                    ],
+                    temperature=0.3  # Lower temperature for more consistent formatting
                 )
-                compatibility_data = json.loads(analysis_response.choices[0].message.content)
 
-                # Validate response format
-                if not all(k in compatibility_data for k in ['score', 'strengths', 'gaps']):
-                    raise ValueError("Invalid response format from OpenAI")
+                # Log the raw response for debugging
+                logging.debug(f"Raw OpenAI response: {analysis_response.choices[0].message.content}")
+
+                # Parse and validate response
+                try:
+                    compatibility_data = json.loads(analysis_response.choices[0].message.content.strip())
+                    if not all(k in compatibility_data for k in ['score', 'strengths', 'gaps']):
+                        raise ValueError("Missing required fields in response")
+                    if not isinstance(compatibility_data['score'], (int, float)):
+                        raise ValueError("Score must be a number")
+                    if not isinstance(compatibility_data['strengths'], list):
+                        raise ValueError("Strengths must be an array")
+                    if not isinstance(compatibility_data['gaps'], list):
+                        raise ValueError("Gaps must be an array")
+
+                    # Ensure score is within bounds
+                    compatibility_data['score'] = max(0, min(100, float(compatibility_data['score'])))
+
+                except (json.JSONDecodeError, ValueError) as e:
+                    logging.error(f"Failed to parse compatibility analysis: {str(e)}")
+                    raise ValueError(f"Invalid response format: {str(e)}")
 
             except Exception as e:
-                logging.error(f"Error generating compatibility analysis: {str(e)}")
+                logging.error(f"Error in compatibility analysis: {str(e)}")
                 compatibility_data = {"score": 0, "strengths": [], "gaps": []}
 
             # Generate interview questions
-            questions_prompt = f"""Generate 5 interview questions based on this job description:
-
-{job_description}
+            questions_prompt = f"""Generate 5 interview questions based on this job description.
 
 For each question, provide:
 1. Question text
@@ -121,7 +140,7 @@ For each question, provide:
 3. Category (Technical/Behavioral)
 4. Difficulty (Easy/Medium/Hard)
 
-Format each question like this:
+Format each question exactly like this:
 1. Question: [question text]
 Sample Answer: [answer text]
 Category: [Technical/Behavioral]
@@ -133,11 +152,12 @@ Difficulty: [Easy/Medium/Hard]
                 messages=[
                     {"role": "system", "content": "You are an expert interviewer. Format your response exactly as shown in the prompt."},
                     {"role": "user", "content": questions_prompt}
-                ]
+                ],
+                temperature=0.7  # Allow for some creativity in questions
             )
 
             content = response.choices[0].message.content
-            logging.info(f"Received response from OpenAI: {content[:200]}...")
+            logging.debug(f"Questions response: {content[:200]}...")
 
             questions = []
             current_question = {}
@@ -319,47 +339,64 @@ def submit_answer(question_id):
                 logging.error(f"Error transcribing audio: {str(e)}")
                 practice.user_answer = f"[{answer_type.upper()} Response - Transcription Failed]"
 
-        # Generate AI feedback
-        try:
-            # Prepare prompt based on question type
-            context = f"""Question: {question.question}
+        # Generate AI feedback for answer
+        feedback_prompt = f"""As an expert interview assessor, analyze this interview answer:
+
+Question: {question.question}
 Expected Answer: {question.sample_answer}
 User's Answer: {practice.user_answer}
 Category: {question.category}
-Attempt Number: {attempt_number}"""
+Attempt Number: {attempt_number}
 
-            feedback_prompt = f"""Analyze this interview answer and provide feedback in the following format exactly:
+You MUST format your response as a valid JSON object with exactly these fields:
 {{
-    "score": <number between 0-100>,
-    "feedback": "<detailed analysis>",
-    "confidence_score": <number between 0-100, only for audio/video>
+    "score": (a number between 0 and 100),
+    "feedback": "detailed analysis of the answer",
+    "confidence_score": (a number between 0 and 100, required for audio/video responses)
 }}
 
-{context}"""
+Respond ONLY with the JSON object, no additional text."""
 
+        try:
             logging.info("Sending feedback request to OpenAI")
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": "You are an expert interview assessor. Provide response in valid JSON format."},
+                    {"role": "system", "content": "You are an expert interview assessor. You must return only valid JSON."},
                     {"role": "user", "content": feedback_prompt}
-                ]
+                ],
+                temperature=0.3  # Lower temperature for more consistent formatting
             )
 
+            # Log the raw response
             feedback_data = response.choices[0].message.content
-            logging.info(f"Received feedback from OpenAI: {feedback_data}")
+            logging.debug(f"Raw feedback response: {feedback_data}")
 
             try:
-                feedback_dict = json.loads(feedback_data)
+                feedback_dict = json.loads(feedback_data.strip())
+
                 # Validate response format
-                if not all(k in feedback_dict for k in ['score', 'feedback']):
-                    raise ValueError("Invalid feedback format from AI")
+                required_fields = ['score', 'feedback']
+                if answer_type in ['audio', 'video']:
+                    required_fields.append('confidence_score')
+
+                if not all(k in feedback_dict for k in required_fields):
+                    raise ValueError(f"Missing required fields. Got: {list(feedback_dict.keys())}")
+
+                # Validate and normalize scores
+                feedback_dict['score'] = max(0, min(100, float(feedback_dict['score'])))
+                if 'confidence_score' in feedback_dict:
+                    feedback_dict['confidence_score'] = max(0, min(100, float(feedback_dict['confidence_score'])))
+
             except json.JSONDecodeError as e:
                 logging.error(f"Failed to parse OpenAI response as JSON: {str(e)}")
                 return jsonify({'error': 'Invalid feedback format from AI'}), 500
+            except ValueError as e:
+                logging.error(f"Invalid feedback format: {str(e)}")
+                return jsonify({'error': str(e)}), 500
 
-            practice.score = feedback_dict.get('score', 0)
-            practice.ai_feedback = feedback_dict.get('feedback', '')
+            practice.score = feedback_dict['score']
+            practice.ai_feedback = feedback_dict['feedback']
             if answer_type in ['audio', 'video']:
                 practice.confidence_score = feedback_dict.get('confidence_score', 0)
 
@@ -371,7 +408,7 @@ Attempt Number: {attempt_number}"""
                 'feedback': {
                     'score': practice.score,
                     'feedback': practice.ai_feedback,
-                    'confidence_score': practice.confidence_score if hasattr(practice, 'confidence_score') else None,
+                    'confidence_score': practice.confidence_score if answer_type in ['audio', 'video'] else None,
                     'attempt_number': practice.attempt_number
                 }
             })
@@ -379,7 +416,7 @@ Attempt Number: {attempt_number}"""
         except Exception as e:
             logging.error(f"Error generating AI feedback: {str(e)}")
             db.session.rollback()
-            return jsonify({'error': 'Failed to generate AI feedback'}), 500
+            return jsonify({'error': f'Failed to generate AI feedback: {str(e)}'}), 500
 
     except Exception as e:
         logging.error(f"Error submitting answer: {str(e)}")
