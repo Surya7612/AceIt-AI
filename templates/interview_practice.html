@@ -28,7 +28,7 @@
                             <label class="form-label">Resume</label>
                             <div class="input-group mb-2">
                                 <input type="file" class="form-control" id="resumeFile" accept=".pdf,.doc,.docx,.txt">
-                                <button class="btn btn-outline-secondary" type="button" onclick="handleResumeFile()">
+                                <button class="btn btn-outline-secondary" type="button" id="uploadButton">
                                     <i data-feather="upload"></i> Upload
                                 </button>
                             </div>
@@ -229,6 +229,7 @@ function createQuestionElement(question) {
 window.generateQuestions = function() {
     const jobDescription = document.getElementById('jobDescription').value;
     const resume = document.getElementById('resume').value;
+    const fileInput = document.getElementById('resumeFile');
 
     if (!jobDescription) {
         alert('Please enter a job description');
@@ -248,15 +249,18 @@ window.generateQuestions = function() {
     document.getElementById('practiceArea').style.display = 'none';
     document.getElementById('compatibilitySection').style.display = 'none';
 
+    // Ensure we're not sending empty data
+    const requestData = {
+        job_description: jobDescription,
+        resume: resume || `[No resume provided]`
+    };
+
     fetch('/interview-practice/generate', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-            job_description: jobDescription,
-            resume: resume 
-        })
+        body: JSON.stringify(requestData)
     })
     .then(response => response.json())
     .then(data => {
@@ -313,7 +317,7 @@ let startTime = null;
 let timerInterval = null;
 
 // Fix handleResumeFile to be properly async and handle file uploads correctly
-async function handleResumeFile() {
+function handleResumeFile() {
     const fileInput = document.getElementById('resumeFile');
     const resumeTextArea = document.getElementById('resume');
     const file = fileInput.files[0];
@@ -323,39 +327,28 @@ async function handleResumeFile() {
         return;
     }
 
-    try {
-        if (file.type === 'text/plain') {
-            const text = await file.text();
-            resumeTextArea.value = text;
-        } else if (file.type === 'application/pdf' || 
-                  file.type === 'application/msword' || 
-                  file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-            resumeTextArea.value = `[Content from: ${file.name}]`;
-        } else {
-            alert('Unsupported file type. Please upload a .txt, .doc, .docx, or .pdf file');
-            fileInput.value = ''; // Clear the file input
-            return;
-        }
-
-        // Show visual feedback
-        const uploadButton = fileInput.nextElementSibling;
-        const originalText = uploadButton.innerHTML;
-        uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
-        uploadButton.classList.remove('btn-outline-secondary');
-        uploadButton.classList.add('btn-success');
-        feather.replace(); // Refresh icons
-
-        // Reset button after 2 seconds
-        setTimeout(() => {
-            uploadButton.innerHTML = originalText;
-            uploadButton.classList.remove('btn-success');
-            uploadButton.classList.add('btn-outline-secondary');
+    if (file.type === 'text/plain') {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            resumeTextArea.value = e.target.result;
+            // Show success feedback
+            const uploadButton = document.getElementById('uploadButton');
+            uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
+            uploadButton.classList.add('btn-success');
+            uploadButton.classList.remove('btn-outline-secondary');
             feather.replace();
-        }, 2000);
-    } catch (error) {
-        console.error('Error handling file:', error);
-        alert('Error processing file. Please try again.');
-        resumeTextArea.value = '';
+
+            // Reset button after 2 seconds
+            setTimeout(() => {
+                uploadButton.innerHTML = '<i data-feather="upload"></i> Upload';
+                uploadButton.classList.remove('btn-success');
+                uploadButton.classList.add('btn-outline-secondary');
+                feather.replace();
+            }, 2000);
+        };
+        reader.readAsText(file);
+    } else {
+        resumeTextArea.value = `[Content from: ${file.name}]`;
     }
 }
 
@@ -654,6 +647,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize Feather icons
     feather.replace();
+    const fileInput = document.getElementById('resumeFile');
+    if (fileInput) {
+        fileInput.addEventListener('change', handleResumeFile);
+    }
 });
 </script>
 {% endblock %}
