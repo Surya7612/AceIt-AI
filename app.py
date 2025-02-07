@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
-
 from ai_helper import generate_study_plan, chat_response
 from ocr_helper import extract_text_from_image
+from document_processor import DocumentProcessor #Added import
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -86,6 +86,9 @@ def create_study_plan():
 
     return render_template('study_plan.html')
 
+# Initialize document processor
+doc_processor = DocumentProcessor()
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     try:
@@ -106,10 +109,17 @@ def upload_file():
                 original_filename=link,
                 file_type='link',
                 content=link,
-                processed=True,
+                processed=False,
                 user_id=1  # Temporary default user ID
             )
             db.session.add(doc)
+
+            # Process link content
+            structured_content = doc_processor.process_document('link', link)
+            if structured_content:
+                doc.structured_content = structured_content
+                doc.processed = True
+
             results.append({
                 'type': 'link',
                 'filename': link,
@@ -124,16 +134,23 @@ def upload_file():
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
 
+                # Determine file type and process content
+                file_type = 'image' if filename.lower().endswith(('.png', '.jpg', '.jpeg')) else 'pdf'
                 content = None
-                if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                structured_content = None
+
+                if file_type == 'image':
                     content = extract_text_from_image(filepath)
+                    if content:
+                        structured_content = doc_processor.process_document('image', filepath)
 
                 doc = Document(
                     filename=filename,
                     original_filename=file.filename,
-                    file_type=filename.rsplit('.', 1)[1].lower(),
+                    file_type=file_type,
                     content=content,
-                    processed=bool(content),
+                    structured_content=structured_content,
+                    processed=bool(structured_content),
                     user_id=1  # Temporary default user ID
                 )
                 db.session.add(doc)
@@ -141,7 +158,7 @@ def upload_file():
                     'type': 'file',
                     'filename': filename,
                     'success': True,
-                    'text': content if content else None
+                    'processed': bool(structured_content)
                 })
 
         db.session.commit()
@@ -150,6 +167,13 @@ def upload_file():
     except Exception as e:
         logging.error(f"Upload error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/document/<int:doc_id>')
+def view_document(doc_id):
+    from models import Document
+    document = Document.query.get_or_404(doc_id)
+    structured_content = document.structured_content # simplified access
+    return render_template('document_view.html', document=document, content=structured_content)
 
 @app.route('/chat')
 def chat():

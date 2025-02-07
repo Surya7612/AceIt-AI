@@ -17,7 +17,7 @@
                                     <th>Type</th>
                                     <th>Upload Date</th>
                                     <th>Status</th>
-                                    <th>Content</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -34,26 +34,37 @@
                                         {% endif %}
                                     </td>
                                     <td>
+                                        <div class="btn-group">
+                                            {% if doc.processed %}
+                                                <a href="{{ url_for('view_document', doc_id=doc.id) }}" 
+                                                   class="btn btn-sm btn-primary">
+                                                    View Study Material
+                                                </a>
+                                            {% endif %}
+                                            {% if doc.content %}
+                                                <button class="btn btn-sm btn-outline-secondary" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#content-{{ doc.id }}">
+                                                    Raw Content
+                                                </button>
+                                            {% endif %}
+                                        </div>
+
                                         {% if doc.content %}
-                                            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#content-{{ doc.id }}">
-                                                View Content
-                                            </button>
-                                            <!-- Content Modal -->
-                                            <div class="modal fade" id="content-{{ doc.id }}" tabindex="-1">
-                                                <div class="modal-dialog modal-lg">
-                                                    <div class="modal-content">
-                                                        <div class="modal-header">
-                                                            <h5 class="modal-title">{{ doc.original_filename }}</h5>
-                                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                                        </div>
-                                                        <div class="modal-body">
-                                                            <pre class="content-preview">{{ doc.content }}</pre>
-                                                        </div>
+                                        <!-- Content Modal -->
+                                        <div class="modal fade" id="content-{{ doc.id }}" tabindex="-1">
+                                            <div class="modal-dialog modal-lg">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">{{ doc.original_filename }}</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <pre class="content-preview">{{ doc.content }}</pre>
                                                     </div>
                                                 </div>
                                             </div>
-                                        {% else %}
-                                            <span class="text-muted">No content available</span>
+                                        </div>
                                         {% endif %}
                                     </td>
                                 </tr>

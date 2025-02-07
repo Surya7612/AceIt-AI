@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime
+import json
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -27,10 +28,19 @@ class Document(db.Model):
     filename = db.Column(db.String(255), nullable=False)
     original_filename = db.Column(db.String(255), nullable=False)
     file_type = db.Column(db.String(50), nullable=False)  # pdf, image, link, text
-    content = db.Column(db.Text)  # Extracted or original text content
+    content = db.Column(db.Text)  # Raw extracted text content
+    structured_content = db.Column(db.Text)  # JSON structured content
     category = db.Column(db.String(50))  # DSA, System Design, Behavioral
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    processed = db.Column(db.Boolean, default=False)  # Whether OCR/NLP processing is complete
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    processed = db.Column(db.Boolean, default=False)
+
+    def get_structured_content(self):
+        """Get structured content as a Python dictionary"""
+        try:
+            return json.loads(self.structured_content) if self.structured_content else None
+        except:
+            return None
 
 class ChatHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
