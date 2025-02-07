@@ -254,11 +254,15 @@ def submit_answer(question_id):
         if not answer_type:
             return jsonify({'error': 'Answer type is required'}), 400
 
+        # Get next attempt number
+        attempt_number = InterviewPractice.get_next_attempt_number(1, question_id)  # User ID hardcoded for now
+
         # Create practice record
         practice = InterviewPractice(
             user_id=1,  # Hardcoded for now
             question_id=question_id,
-            answer_type=answer_type
+            answer_type=answer_type,
+            attempt_number=attempt_number
         )
 
         if answer_type == 'text':
@@ -275,7 +279,8 @@ def submit_answer(question_id):
             if file.filename == '':
                 return jsonify({'error': 'No selected file'}), 400
 
-            filename = secure_filename(f"{question_id}_{datetime.utcnow().timestamp()}.webm")
+            # Save with attempt number in filename
+            filename = secure_filename(f"{question_id}_attempt_{attempt_number}_{datetime.utcnow().timestamp()}.webm")
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             practice.media_url = filename
@@ -289,7 +294,8 @@ def submit_answer(question_id):
             context = f"""Question: {question.question}
 Expected Answer: {question.sample_answer}
 User's Answer: {practice.user_answer}
-Category: {question.category}"""
+Category: {question.category}
+Attempt Number: {attempt_number}"""
 
             prompt = f"""Analyze this interview answer and provide feedback:
 {context}
@@ -330,7 +336,8 @@ Provide feedback in JSON format with these fields:
                 'feedback': {
                     'score': practice.score,
                     'feedback': practice.ai_feedback,
-                    'confidence_score': practice.confidence_score if hasattr(practice, 'confidence_score') else None
+                    'confidence_score': practice.confidence_score if hasattr(practice, 'confidence_score') else None,
+                    'attempt_number': practice.attempt_number
                 }
             })
 

@@ -344,10 +344,20 @@ function startRecording(type) {
         video: type === 'video'
     };
 
+    // Reset media elements
+    if (type === 'video') {
+        document.getElementById('videoPlayback').style.display = 'none';
+        document.getElementById('videoPreview').style.display = 'none';
+    } else {
+        document.getElementById('audioPlayback').style.display = 'none';
+    }
+
     navigator.mediaDevices.getUserMedia(constraints)
         .then(stream => {
             recordedChunks = [];
-            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType: type === 'video' ? 'video/webm' : 'audio/webm'
+            });
 
             if (type === 'video') {
                 const preview = document.getElementById('videoPreview');
@@ -359,6 +369,24 @@ function startRecording(type) {
             mediaRecorder.ondataavailable = (e) => {
                 if (e.data.size > 0) {
                     recordedChunks.push(e.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, {
+                    type: type === 'video' ? 'video/webm' : 'audio/webm'
+                });
+                const url = URL.createObjectURL(blob);
+
+                if (type === 'video') {
+                    document.getElementById('videoPreview').style.display = 'none';
+                    const playback = document.getElementById('videoPlayback');
+                    playback.src = url;
+                    playback.style.display = 'block';
+                } else {
+                    const playback = document.getElementById('audioPlayback');
+                    playback.src = url;
+                    playback.style.display = 'block';
                 }
             };
 
@@ -376,7 +404,7 @@ function startRecording(type) {
 }
 
 function stopRecording(type) {
-    if (!mediaRecorder) return;
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
 
     mediaRecorder.stop();
     clearInterval(timerInterval);
@@ -385,28 +413,9 @@ function stopRecording(type) {
     const tracks = mediaRecorder.stream.getTracks();
     tracks.forEach(track => track.stop());
 
-    mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, {
-            type: type === 'video' ? 'video/webm' : 'audio/webm'
-        });
-        const url = URL.createObjectURL(blob);
-
-        if (type === 'video') {
-            document.getElementById('videoPreview').style.display = 'none';
-            const playback = document.getElementById('videoPlayback');
-            playback.src = url;
-            playback.style.display = 'block';
-        } else {
-            const playback = document.getElementById('audioPlayback');
-            playback.src = url;
-            playback.style.display = 'block';
-        }
-    };
-
     document.getElementById(`start${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'block';
     document.getElementById(`stop${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'none';
 }
-
 
 function showQuestion(questionId) {
     currentQuestionId = questionId;
@@ -459,12 +468,17 @@ function submitAnswer() {
             return;
         }
 
-        // Convert recorded media to blob for upload
         const blob = new Blob(recordedChunks, {
             type: answerType === 'video' ? 'video/webm' : 'audio/webm'
         });
-        formData.append('media_file', blob);
+        formData.append('media_file', blob, `${answerType}_answer.webm`);
     }
+
+    // Show loading state
+    const submitBtn = document.querySelector('button[onclick="submitAnswer()"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
 
     fetch(`/interview-practice/${currentQuestionId}/answer`, {
         method: 'POST',
@@ -474,6 +488,11 @@ function submitAnswer() {
     .then(data => {
         if (data.success) {
             showFeedback(data.feedback);
+            // Reset recording elements
+            if (answerType !== 'text') {
+                document.getElementById(`${answerType}Playback`).style.display = 'none';
+                document.getElementById(`${answerType}Timer`).textContent = '';
+            }
         } else {
             alert('Error submitting answer: ' + data.error);
         }
@@ -481,6 +500,11 @@ function submitAnswer() {
     .catch(error => {
         console.error('Error:', error);
         alert('Failed to submit answer');
+    })
+    .finally(() => {
+        // Reset button state
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
     });
 }
 
@@ -574,8 +598,15 @@ function clearData() {
     });
 }
 
-// Initialize Feather icons
+// Initialize Feather icons and clear question list on page load/refresh
 document.addEventListener('DOMContentLoaded', function() {
+    // Clear questions list on page load/refresh
+    document.getElementById('questionsList').innerHTML = '';
+    document.getElementById('practiceArea').style.display = 'none';
+    document.getElementById('compatibilitySection').style.display = 'none';
+    document.getElementById('feedbackArea').style.display = 'none';
+
+    // Initialize Feather icons
     feather.replace();
 });
 </script>

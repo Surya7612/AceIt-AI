@@ -182,7 +182,9 @@ class InterviewPractice(db.Model):
     ai_feedback = db.Column(db.Text)  # AI-generated feedback on the answer
     score = db.Column(db.Integer)  # Optional score/rating
     confidence_score = db.Column(db.Float)  # Confidence score from audio/video analysis
+    attempt_number = db.Column(db.Integer, default=1)  # Track multiple attempts
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    final_answer = db.Column(db.Boolean, default=False)  # Flag for final answer
 
     # Add relationships
     question = db.relationship('InterviewQuestion', backref='practices')
@@ -190,4 +192,14 @@ class InterviewPractice(db.Model):
 
     __table_args__ = (
         Index('idx_interview_practice_user_created', 'user_id', 'created_at'),
+        Index('idx_interview_practice_question_attempt', 'question_id', 'attempt_number'),
     )
+
+    @classmethod
+    def get_next_attempt_number(cls, user_id, question_id):
+        """Get the next attempt number for a question"""
+        latest = cls.query.filter_by(
+            user_id=user_id,
+            question_id=question_id
+        ).order_by(cls.attempt_number.desc()).first()
+        return (latest.attempt_number + 1) if latest else 1
