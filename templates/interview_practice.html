@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="card-title">Interview Practice</h2>
+                    <p class="text-muted">Practice interview questions tailored to your job description with AI feedback</p>
+                    
+                    <!-- Job Description Input -->
+                    <div class="mb-4">
+                        <label for="jobDescription" class="form-label">Enter Job Description</label>
+                        <textarea class="form-control mb-2" id="jobDescription" rows="4" placeholder="Paste the job description here..."></textarea>
+                        <button class="btn btn-primary" onclick="generateQuestions()">
+                            <i data-feather="cpu"></i> Generate Questions
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Questions List -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Questions</h5>
+                </div>
+                <div class="list-group list-group-flush" id="questionsList">
+                    {% for question in questions %}
+                    <button class="list-group-item list-group-item-action" onclick="showQuestion({{ question.id }})">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">{{ question.category }}</h6>
+                            <small class="text-muted">{{ question.difficulty }}</small>
+                        </div>
+                        <p class="mb-1">{{ question.question[:100] }}...</p>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card" id="practiceArea" style="display: none;">
+                <div class="card-header">
+                    <h5 class="card-title mb-0" id="currentQuestion"></h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="answer" class="form-label">Your Answer</label>
+                        <textarea class="form-control" id="answer" rows="6" placeholder="Type your answer here..."></textarea>
+                    </div>
+                    <button class="btn btn-success" onclick="submitAnswer()">
+                        <i data-feather="check-circle"></i> Submit Answer
+                    </button>
+                </div>
+            </div>
+
+            <!-- Feedback Area -->
+            <div class="card mt-3" id="feedbackArea" style="display: none;">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">AI Feedback</h5>
+                </div>
+                <div class="card-body">
+                    <div id="feedbackContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentQuestionId = null;
+
+function generateQuestions() {
+    const jobDescription = document.getElementById('jobDescription').value;
+    if (!jobDescription) {
+        alert('Please enter a job description');
+        return;
+    }
+
+    fetch('/interview-practice/generate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ job_description: jobDescription })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error generating questions: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to generate questions');
+    });
+}
+
+function showQuestion(questionId) {
+    currentQuestionId = questionId;
+    const practiceArea = document.getElementById('practiceArea');
+    practiceArea.style.display = 'block';
+    document.getElementById('feedbackArea').style.display = 'none';
+    document.getElementById('answer').value = '';
+    
+    // Update current question text
+    const questionElement = document.querySelector(`[onclick="showQuestion(${questionId})"]`);
+    document.getElementById('currentQuestion').textContent = 
+        questionElement.querySelector('p').textContent;
+}
+
+function submitAnswer() {
+    if (!currentQuestionId) return;
+    
+    const answer = document.getElementById('answer').value;
+    if (!answer) {
+        alert('Please provide an answer');
+        return;
+    }
+
+    fetch(`/interview-practice/${currentQuestionId}/answer`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ answer: answer })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showFeedback(data.feedback);
+        } else {
+            alert('Error submitting answer: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to submit answer');
+    });
+}
+
+function showFeedback(feedback) {
+    const feedbackArea = document.getElementById('feedbackArea');
+    const feedbackContent = document.getElementById('feedbackContent');
+    
+    // Create feedback HTML
+    const html = `
+        <div class="mb-3">
+            <h6 class="mb-2">Score: ${feedback.score}/100</h6>
+            <div class="progress mb-3">
+                <div class="progress-bar" role="progressbar" style="width: ${feedback.score}%" 
+                    aria-valuenow="${feedback.score}" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <h6>Feedback:</h6>
+            <p>${feedback.feedback}</p>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-success">Strengths:</h6>
+                <ul>
+                    ${feedback.strengths.map(s => `<li>${s}</li>`).join('')}
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h6 class="text-warning">Areas for Improvement:</h6>
+                <ul>
+                    ${feedback.improvements.map(i => `<li>${i}</li>`).join('')}
+                </ul>
+            </div>
+        </div>
+    `;
+    
+    feedbackContent.innerHTML = html;
+    feedbackArea.style.display = 'block';
+}
+
+// Initialize Feather icons
+document.addEventListener('DOMContentLoaded', function() {
+    feather.replace();
+});
+</script>
+{% endblock %}

@@ -461,6 +461,7 @@ def update_study_plan_schedule(plan_id):
         logging.error(f"Error updating study plan: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
 # Add these new routes after the existing routes
 @app.route('/folders', methods=['GET', 'POST'])
 def folders():
@@ -532,6 +533,139 @@ def view_folder(folder_id):
     from models import Folder
     folder = Folder.query.get_or_404(folder_id)
     return render_template('folder_view.html', folder=folder)
+
+@app.route('/interview-practice', methods=['GET'])
+def interview_practice():
+    """Show interview practice dashboard"""
+    from models import InterviewQuestion
+    questions = InterviewQuestion.query.filter_by(user_id=1).order_by(InterviewQuestion.created_at.desc()).all()
+    return render_template('interview_practice.html', questions=questions)
+
+@app.route('/interview-practice/generate', methods=['POST'])
+def generate_interview_questions():
+    """Generate interview questions based on job description"""
+    try:
+        from models import InterviewQuestion
+        job_description = request.json.get('job_description', '')
+
+        if not job_description:
+            return jsonify({'error': 'Job description is required'}), 400
+
+        # Generate questions using OpenAI
+        prompt = f"""Based on this job description, generate 5 relevant interview questions with sample answers.
+        Format the response as JSON with this structure:
+        {{
+            "questions": [
+                {{
+                    "question": "question text",
+                    "sample_answer": "detailed sample answer",
+                    "category": "Technical|Behavioral|General",
+                    "difficulty": "Easy|Medium|Hard"
+                }}
+            ]
+        }}
+
+        Job Description:
+        {job_description}
+        """
+
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are an expert technical interviewer."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+
+        questions_data = json.loads(response.choices[0].message.content)
+
+        # Save questions to database
+        saved_questions = []
+        for q in questions_data['questions']:
+            question = InterviewQuestion(
+                user_id=1,  # Default user
+                job_description=job_description,
+                question=q['question'],
+                sample_answer=q['sample_answer'],
+                category=q['category'],
+                difficulty=q['difficulty']
+            )
+            db.session.add(question)
+            saved_questions.append(question)
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'questions': [{
+                'id': q.id,
+                'question': q.question,
+                'category': q.category,
+                'difficulty': q.difficulty
+            } for q in saved_questions]
+        })
+
+    except Exception as e:
+        logging.error(f"Error generating interview questions: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/interview-practice/<int:question_id>/answer', methods=['POST'])
+def submit_practice_answer(question_id):
+    """Submit and get feedback on practice answer"""
+    try:
+        from models import InterviewQuestion, InterviewPractice
+        question = InterviewQuestion.query.get_or_404(question_id)
+        answer = request.json.get('answer', '')
+
+        if not answer:
+            return jsonify({'error': 'Answer is required'}), 400
+
+        # Generate AI feedback using OpenAI
+        prompt = f"""Evaluate this interview answer and provide constructive feedback.
+
+        Question: {question.question}
+        Sample Answer: {question.sample_answer}
+        User's Answer: {answer}
+
+        Provide feedback in JSON format:
+        {{
+            "feedback": "detailed feedback",
+            "score": number between 1-100,
+            "strengths": ["list of strengths"],
+            "improvements": ["areas for improvement"]
+        }}"""
+
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are an expert interviewer providing constructive feedback."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+
+        feedback_data = json.loads(response.choices[0].message.content)
+
+        # Save practice attempt
+        practice = InterviewPractice(
+            user_id=1,  # Default user
+            question_id=question_id,
+            user_answer=answer,
+            ai_feedback=json.dumps(feedback_data),
+            score=feedback_data['score']
+        )
+        db.session.add(practice)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'feedback': feedback_data
+        })
+
+    except Exception as e:
+        logging.error(f"Error processing practice answer: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 with app.app_context():
     # Import models here to avoid circular imports

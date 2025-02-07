@@ -151,3 +151,38 @@ folder_documents = db.Table('folder_documents',
     db.Column('folder_id', db.Integer, db.ForeignKey('folder.id'), primary_key=True),
     db.Column('document_id', db.Integer, db.ForeignKey('document.id'), primary_key=True)
 )
+
+class InterviewQuestion(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    job_description = db.Column(db.Text, nullable=False)  # Store the job description
+    question = db.Column(db.Text, nullable=False)  # The actual question
+    sample_answer = db.Column(db.Text)  # AI-generated sample answer
+    category = db.Column(db.String(50))  # Technical, Behavioral, etc.
+    difficulty = db.Column(db.String(20))  # Easy, Medium, Hard
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Add relationship to User model
+    user = db.relationship('User', backref=db.backref('interview_questions', lazy=True))
+
+    __table_args__ = (
+        Index('idx_interview_question_user_created', 'user_id', 'created_at'),
+    )
+
+class InterviewPractice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    question_id = db.Column(db.Integer, db.ForeignKey('interview_question.id'), nullable=False)
+    user_answer = db.Column(db.Text, nullable=False)
+    ai_feedback = db.Column(db.Text)  # AI-generated feedback on the answer
+    score = db.Column(db.Integer)  # Optional score/rating
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Add relationships
+    question = db.relationship('InterviewQuestion', backref='practices')
+    user = db.relationship('User', backref=db.backref('interview_practices', lazy=True))
+
+    __table_args__ = (
+        Index('idx_interview_practice_user_created', 'user_id', 'created_at'),
+    )
