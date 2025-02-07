@@ -578,7 +578,7 @@ def generate_interview_questions():
         """
 
         response = openai.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4",  # Fixed model name
             messages=[
                 {"role": "system", "content": "You are an expert technical interviewer and career advisor."},
                 {"role": "user", "content": prompt}
@@ -677,7 +677,7 @@ def submit_practice_answer(question_id):
         }}"""
 
         response = openai.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are an expert interviewer providing constructive feedback."},
                 {"role": "user", "content": prompt}
