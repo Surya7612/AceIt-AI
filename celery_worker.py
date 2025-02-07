@@ -1,4 +1,5 @@
 import os
+import json
 from celery import Celery
 from document_processor import DocumentProcessor
 from models import Document, db
@@ -37,7 +38,9 @@ def process_document_task(doc_id):
                 structured_content = doc_processor.process_document('pdf', document.filename)
 
             if structured_content:
+                content_dict = json.loads(structured_content)
                 document.structured_content = structured_content
+                document.category = content_dict.get('category', 'Uncategorized')
                 document.processed = True
                 db.session.commit()
                 logging.info(f"Successfully processed document {doc_id}")

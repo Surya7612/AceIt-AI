@@ -23,6 +23,7 @@
                                             </div>
                                         </th>
                                         <th>Filename</th>
+                                        <th>Category</th>
                                         <th>Type</th>
                                         <th>Upload Date</th>
                                         <th>Status</th>
@@ -40,6 +41,18 @@
                                             </div>
                                         </td>
                                         <td>{{ doc.original_filename }}</td>
+                                        <td>
+                                            {% if doc.category %}
+                                                <span class="badge bg-{{ 'info' if doc.category == 'DSA' 
+                                                                    else 'success' if doc.category == 'System Design' 
+                                                                    else 'warning' if doc.category == 'Behavioral' 
+                                                                    else 'secondary' }}">
+                                                    {{ doc.category }}
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Uncategorized</span>
+                                            {% endif %}
+                                        </td>
                                         <td>{{ doc.file_type }}</td>
                                         <td>{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                                         <td>
@@ -96,70 +109,4 @@
         </div>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const selectAll = document.getElementById('select-all');
-    const docSelects = document.querySelectorAll('.doc-select:not([disabled])');
-    const combineBtn = document.getElementById('combine-selected');
-    const combineForm = document.getElementById('combine-form');
-
-    // Handle select all checkbox
-    if (selectAll) {
-        selectAll.addEventListener('change', function() {
-            docSelects.forEach(checkbox => {
-                checkbox.checked = selectAll.checked;
-            });
-            updateCombineButton();
-        });
-    }
-
-    // Handle individual checkboxes
-    docSelects.forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            updateCombineButton();
-            // Update select all checkbox
-            if (selectAll) {
-                selectAll.checked = Array.from(docSelects).every(cb => cb.checked);
-            }
-        });
-    });
-
-    // Update combine button state
-    function updateCombineButton() {
-        const selectedCount = document.querySelectorAll('.doc-select:checked').length;
-        combineBtn.disabled = selectedCount < 2;
-    }
-
-    // Handle combine button click
-    if (combineBtn) {
-        combineBtn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            const selectedDocs = Array.from(document.querySelectorAll('.doc-select:checked')).map(cb => cb.value);
-
-            try {
-                const response = await fetch('/documents/combine', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        document_ids: selectedDocs
-                    })
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    window.location.href = result.redirect_url;
-                } else {
-                    alert('Error creating combined study plan: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Failed to create combined study plan. Please try again.');
-            }
-        });
-    }
-});
-</script>
 {% endblock %}

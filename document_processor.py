@@ -39,8 +39,64 @@ class DocumentProcessor:
                 return None
 
             # Generate structured content using OpenAI
-            structured_content = self.generate_structured_content(raw_text)
-            return json.dumps(structured_content)  # Convert to JSON string for storage
+            response = openai.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """Analyze the provided content and create a structured study document with the following JSON format:
+                        {
+                            "title": "Main topic or subject",
+                            "summary": "Concise overview of the content",
+                            "category": "DSA|System Design|Behavioral",
+                            "difficulty_level": "beginner|intermediate|advanced",
+                            "estimated_study_time": "Time in minutes",
+                            "key_concepts": [
+                                {
+                                    "name": "Concept name",
+                                    "description": "Brief explanation"
+                                }
+                            ],
+                            "sections": [
+                                {
+                                    "heading": "Section title",
+                                    "content": "Detailed explanation",
+                                    "key_points": ["Important points"],
+                                    "examples": ["Practical examples or code snippets"]
+                                }
+                            ],
+                            "practice_questions": [
+                                {
+                                    "question": "Study question",
+                                    "answer": "Detailed answer",
+                                    "explanation": "Why this answer is correct",
+                                    "difficulty": "easy|medium|hard"
+                                }
+                            ],
+                            "additional_resources": [
+                                {
+                                    "title": "Resource name",
+                                    "type": "article|video|tutorial",
+                                    "description": "Brief description"
+                                }
+                            ]
+                        }
+
+                        For category classification:
+                        - DSA: Content about data structures, algorithms, complexity analysis, coding patterns
+                        - System Design: Architecture, scalability, databases, distributed systems, design patterns
+                        - Behavioral: Soft skills, leadership, teamwork, project management, communication
+                        """
+                    },
+                    {"role": "user", "content": raw_text}
+                ],
+                response_format={"type": "json_object"}
+            )
+
+            structured_content = json.loads(response.choices[0].message.content)
+
+            # Update document category based on AI classification
+            return json.dumps(structured_content)
 
         except Exception as e:
             logger.error(f"Error processing document: {str(e)}", exc_info=True)
