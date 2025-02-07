@@ -564,144 +564,119 @@ def generate_interview_questions():
             return jsonify({'error': 'Job description is required'}), 400
 
         try:
-            # Verify OpenAI API key is set and create client
+            # Initialize OpenAI client with API key
             api_key = os.environ.get("OPENAI_API_KEY")
             if not api_key:
                 logging.error("OpenAI API key is not set")
                 return jsonify({'error': 'OpenAI API key is not configured'}), 500
 
-            client = OpenAI(api_key=api_key)
-            logging.info("OpenAI client initialized successfully")
+            client = OpenAI()  # OpenAI client will automatically use the environment variable
+            logging.info("OpenAI client initialized")
 
-            # Clear existing questions first
+            # Clear existing questions
             InterviewQuestion.query.filter_by(user_id=1).delete()
             db.session.commit()
-            logging.info("Cleared existing questions")
 
-            # Format the system message
-            system_message = (
-                "You are an expert technical interviewer and career advisor. "
-                "Generate interview questions and provide analysis. "
-                "Respond with valid JSON only in this format: "
-                "{"
-                '"success_rate": <number between 0-100>,'
-                '"analysis": "<detailed analysis text>",'
-                '"compatibility_ranking": {'
-                '"score": <number between 0-100>,'
-                '"strengths": ["<strength1>", "<strength2>"],'
-                '"gaps": ["<gap1>", "<gap2>"]'
-                '},'
-                '"questions": ['
-                '{"question": "<question text>",'
-                '"sample_answer": "<detailed sample answer>",'
-                '"category": "<Technical|Behavioral|General>",'
-                '"difficulty": "<Easy|Medium|Hard>"}'
-                "]}"
-            )
+            # Prepare messages for OpenAI
+            messages = [
+                {
+                    "role": "system",
+                    "content": """You are an expert technical interviewer. Generate interview questions based on the job description.
+                    Return a JSON object with this exact structure:
+                    {
+                        "success_rate": 85,
+                        "analysis": "Brief analysis of the job requirements",
+                        "questions": [
+                            {
+                                "question": "The interview question",
+                                "sample_answer": "A good example answer",
+                                "category": "Technical",
+                                "difficulty": "Medium"
+                            }
+                        ]
+                    }"""
+                },
+                {
+                    "role": "user",
+                    "content": f"Generate 5 relevant interview questions for this job description:\n\n{job_description}"
+                }
+            ]
 
-            # Format the user message
-            resume_text = f"\n\nResume:\n{resume}" if resume else ""
-            user_message = (
-                f"Generate 5 relevant interview questions with sample answers based on this job description."
-                f"\n\nJob Description:\n{job_description}"
-                f"{resume_text}"
-            )
-
-            logging.info("Sending request to OpenAI API with formatted messages")
+            # Make API request
             try:
+                logging.info("Sending request to OpenAI")
                 response = client.chat.completions.create(
                     model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_message}
-                    ],
+                    messages=messages,
                     temperature=0.7,
-                    max_tokens=2000,
                     response_format={"type": "json_object"}
                 )
-                logging.info("Successfully received response from OpenAI")
-
-                if not response.choices or not response.choices[0].message:
-                    raise ValueError("No response choices available from OpenAI")
 
                 content = response.choices[0].message.content
-                logging.info(f"Generated content length: {len(content)}")
+                logging.info("Received response from OpenAI")
+                logging.debug(f"Raw response: {content[:200]}...")  # Log first 200 chars
 
-            except Exception as api_error:
-                logging.error(f"OpenAI API error: {str(api_error)}", exc_info=True)
-                return jsonify({
-                    'error': 'Failed to generate interview questions',
-                    'details': str(api_error)
-                }), 500
+                # Parse response
+                try:
+                    data = json.loads(content)
+                    if not isinstance(data, dict) or 'questions' not in data:
+                        raise ValueError("Invalid response format")
 
-            # Parse and validate the response
-            try:
-                analysis_data = json.loads(content)
-                if not isinstance(analysis_data, dict):
-                    raise ValueError("Response is not a JSON object")
+                    questions = data['questions']
+                    if not questions:
+                        raise ValueError("No questions generated")
 
-                if "questions" not in analysis_data or not analysis_data["questions"]:
-                    raise ValueError("No questions generated in the response")
+                    # Save questions to database
+                    saved_questions = []
+                    for q in questions:
+                        question = InterviewQuestion(
+                            user_id=1,
+                            question=q['question'],
+                            sample_answer=q['sample_answer'],
+                            category=q['category'],
+                            difficulty=q['difficulty'],
+                            job_description=job_description,
+                            resume_content=resume,
+                            success_rate=data.get('success_rate', 85)
+                        )
+                        db.session.add(question)
+                        saved_questions.append(question)
 
-                logging.info(f"Successfully parsed response with {len(analysis_data['questions'])} questions")
+                    db.session.commit()
+                    logging.info(f"Saved {len(saved_questions)} questions")
 
-            except json.JSONDecodeError as e:
-                logging.error(f"JSON parsing error: {str(e)}")
-                return jsonify({'error': 'Failed to parse response data'}), 500
-            except ValueError as e:
-                logging.error(f"Validation error: {str(e)}")
-                return jsonify({'error': str(e)}), 500
+                    return jsonify({
+                        'success': True,
+                        'questions': [{
+                            'id': q.id,
+                            'question': q.question,
+                            'category': q.category,
+                            'difficulty': q.difficulty
+                        } for q in saved_questions],
+                        'analysis': data.get('analysis', '')
+                    })
 
-            # Save the generated questions
-            saved_questions = []
-            try:
-                for q in analysis_data['questions']:
-                    question = InterviewQuestion(
-                        user_id=1,
-                        job_description=job_description,
-                        resume_content=resume,
-                        question=q['question'],
-                        sample_answer=q['sample_answer'],
-                        category=q['category'],
-                        difficulty=q['difficulty'],
-                        success_rate=analysis_data['success_rate']
-                    )
-                    db.session.add(question)
-                    saved_questions.append(question)
+                except json.JSONDecodeError as e:
+                    logging.error(f"Failed to parse OpenAI response: {str(e)}")
+                    return jsonify({'error': 'Failed to parse response from AI'}), 500
+                except ValueError as e:
+                    logging.error(f"Invalid response format: {str(e)}")
+                    return jsonify({'error': str(e)}), 500
+                except Exception as e:
+                    logging.error(f"Error processing response: {str(e)}")
+                    return jsonify({'error': 'Failed to process AI response'}), 500
 
-                db.session.commit()
-                logging.info(f"Successfully saved {len(saved_questions)} questions")
-
-                return jsonify({
-                    'success': True,
-                    'analysis': analysis_data['analysis'],
-                    'success_rate': analysis_data['success_rate'],
-                    'compatibility_ranking': analysis_data.get('compatibility_ranking', {
-                        'score': analysis_data['success_rate'],
-                        'strengths': [],
-                        'gaps': []
-                    }),
-                    'questions': [{
-                        'id': q.id,
-                        'question': q.question,
-                        'category': q.category,
-                        'difficulty': q.difficulty,
-                        'success_rate': q.success_rate
-                    } for q in saved_questions]
-                })
-
-            except Exception as db_error:
-                logging.error(f"Database error: {str(db_error)}")
-                db.session.rollback()
-                return jsonify({'error': 'Failed to save questions'}), 500
+            except Exception as e:
+                logging.error(f"OpenAI API error: {str(e)}")
+                return jsonify({'error': 'Failed to generate questions'}), 500
 
         except Exception as e:
-            logging.error(f"General error: {str(e)}", exc_info=True)
+            logging.error(f"Error in question generation: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
     except Exception as e:
-        logging.error(f"Outer error: {str(e)}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        logging.error(f"Unexpected error: {str(e)}")
+        return jsonify({'error': 'An unexpected error occurred'}), 500
 
 @app.route('/interview-practice/<int:question_id>/answer', methods=['POST'])
 def submit_practice_answer(question_id):
@@ -867,6 +842,58 @@ def clear_interview_data():
     except Exception as e:
         logging.error(f"Error clearing interview data: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+# Add this route after the existing routes
+@app.route('/test-openai')
+def test_openai():
+    """Test OpenAI API connection"""
+    try:
+        logging.info("Testing OpenAI API connection")
+        client = OpenAI()
+        logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
+
+        try:
+            # Try a simple completion
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "user", "content": "Say 'OpenAI connection working!'"}
+                ]
+            )
+
+            if response and response.choices and response.choices[0].message:
+                logging.info("OpenAI API test successful")
+                return jsonify({
+                    'success': True,
+                    'message': response.choices[0].message.content,
+                    'api_status': 'working'
+                })
+            else:
+                error_msg = "OpenAI API response was empty or invalid"
+                logging.error(error_msg)
+                return jsonify({
+                    'success': False,
+                    'error': error_msg,
+                    'api_status': 'invalid_response'
+                }), 500
+
+        except Exception as api_error:
+            error_msg = f"OpenAI API call failed: {str(api_error)}"
+            logging.error(error_msg)
+            return jsonify({
+                'success': False,
+                'error': error_msg,
+                'api_status': 'api_error'
+            }), 500
+
+    except Exception as e:
+        error_msg = f"General error in test_openai route: {str(e)}"
+        logging.error(error_msg)
+        return jsonify({
+            'success': False,
+            'error': error_msg,
+            'api_status': 'setup_error'
+        }), 500
 
 # Fix app context usage
 with app.app_context():
