@@ -461,6 +461,76 @@ def update_study_plan_schedule(plan_id):
         logging.error(f"Error updating study plan: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+# Add these new routes after the existing routes
+@app.route('/folders', methods=['GET', 'POST'])
+def folders():
+    if request.method == 'POST':
+        try:
+            from models import Folder
+            name = request.json.get('name')
+            parent_id = request.json.get('parent_id')
+
+            if not name:
+                return jsonify({'error': 'Folder name is required'}), 400
+
+            folder = Folder(
+                name=name,
+                parent_id=parent_id,
+                user_id=1  # Default user
+            )
+            db.session.add(folder)
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'folder': {
+                    'id': folder.id,
+                    'name': folder.name,
+                    'parent_id': folder.parent_id
+                }
+            })
+        except Exception as e:
+            logging.error(f"Error creating folder: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
+    from models import Folder
+    folders = Folder.query.filter_by(user_id=1).all()
+    return render_template('folders.html', folders=folders)
+
+@app.route('/folders/<int:folder_id>/items', methods=['POST'])
+def update_folder_items(folder_id):
+    try:
+        from models import Folder, StudyPlan, Document
+        data = request.get_json()
+        item_type = data.get('type')
+        item_id = data.get('id')
+
+        folder = Folder.query.get_or_404(folder_id)
+
+        if item_type == 'study_plan':
+            item = StudyPlan.query.get_or_404(item_id)
+            if item not in folder.study_plans:
+                folder.study_plans.append(item)
+        elif item_type == 'document':
+            item = Document.query.get_or_404(item_id)
+            if item not in folder.documents:
+                folder.documents.append(item)
+        else:
+            return jsonify({'error': 'Invalid item type'}), 400
+
+        db.session.commit()
+        return jsonify({'success': True})
+
+    except Exception as e:
+        logging.error(f"Error updating folder items: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/folders/<int:folder_id>', methods=['GET'])
+def view_folder(folder_id):
+    from models import Folder
+    folder = Folder.query.get_or_404(folder_id)
+    return render_template('folder_view.html', folder=folder)
+
 with app.app_context():
     # Import models here to avoid circular imports
     import models

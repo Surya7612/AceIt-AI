@@ -11,6 +11,8 @@ class User(db.Model):
     study_plans = db.relationship('StudyPlan', backref='user', lazy=True)
     documents = db.relationship('Document', backref='user', lazy=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    folders = db.relationship('Folder', backref='user', lazy=True) # Added relationship
+
 
 class StudyPlan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -124,3 +126,28 @@ class ChatHistory(db.Model):
     __table_args__ = (
         Index('idx_chat_history_user_created', 'user_id', 'created_at'),
     )
+
+
+class Folder(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('folder.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    parent = db.relationship('Folder', remote_side=[id], backref=db.backref('subfolders', lazy=True))
+    study_plans = db.relationship('StudyPlan', secondary='folder_study_plans', backref='folders')
+    documents = db.relationship('Document', secondary='folder_documents', backref='folders')
+
+# Association tables for folders
+folder_study_plans = db.Table('folder_study_plans',
+    db.Column('folder_id', db.Integer, db.ForeignKey('folder.id'), primary_key=True),
+    db.Column('study_plan_id', db.Integer, db.ForeignKey('study_plan.id'), primary_key=True)
+)
+
+folder_documents = db.Table('folder_documents',
+    db.Column('folder_id', db.Integer, db.ForeignKey('folder.id'), primary_key=True),
+    db.Column('document_id', db.Integer, db.ForeignKey('document.id'), primary_key=True)
+)

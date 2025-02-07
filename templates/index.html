@@ -76,7 +76,7 @@
                 {% if recent_plans %}
                 <div class="list-group">
                     {% for plan in recent_plans %}
-                    <div class="list-group-item">
+                    <a href="{{ url_for('view_study_plan', plan_id=plan.id) }}" class="list-group-item">
                         <h6 class="mb-1">{{ plan.title }}</h6>
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">Created {{ plan.created_at.strftime('%Y-%m-%d') }}</small>
@@ -84,7 +84,7 @@
                                 <div class="progress-bar" role="progressbar" style="width: {{ plan.progress }}%"></div>
                             </div>
                         </div>
-                    </div>
+                    </a>
                     {% endfor %}
                 </div>
                 {% else %}

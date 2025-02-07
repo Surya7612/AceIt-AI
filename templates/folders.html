@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">My Folders</h5>
+                <button class="btn btn-primary btn-sm" onclick="createFolder()">
+                    <i data-feather="folder-plus"></i> New Folder
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="folders-list" id="foldersList">
+                            {% for folder in folders %}
+                            <div class="folder-item" data-folder-id="{{ folder.id }}" ondrop="dropItem(event)" ondragover="allowDrop(event)">
+                                <i data-feather="folder"></i>
+                                <span>{{ folder.name }}</span>
+                                <small class="text-muted d-block">
+                                    {{ folder.study_plans|length }} plans, {{ folder.documents|length }} docs
+                                </small>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="items-container">
+                            <h6 class="mb-3">Study Plans</h6>
+                            <div class="list-group mb-4">
+                                {% for plan in study_plans %}
+                                <div class="list-group-item" draggable="true" ondragstart="dragStart(event)" data-item-type="study_plan" data-item-id="{{ plan.id }}">
+                                    <h6 class="mb-1">{{ plan.title }}</h6>
+                                    <small class="text-muted">Created {{ plan.created_at.strftime('%Y-%m-%d') }}</small>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <h6 class="mb-3">Documents</h6>
+                            <div class="list-group">
+                                {% for doc in documents %}
+                                <div class="list-group-item" draggable="true" ondragstart="dragStart(event)" data-item-type="document" data-item-id="{{ doc.id }}">
+                                    <h6 class="mb-1">{{ doc.original_filename }}</h6>
+                                    <small class="text-muted">Uploaded {{ doc.created_at.strftime('%Y-%m-%d') }}</small>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Folder Modal -->
+<div class="modal fade" id="createFolderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="folderName" class="form-label">Folder Name</label>
+                    <input type="text" class="form-control" id="folderName" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitFolder()">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Folder creation
+    function createFolder() {
+        const modal = new bootstrap.Modal(document.getElementById('createFolderModal'));
+        modal.show();
+    }
+
+    function submitFolder() {
+        const name = document.getElementById('folderName').value;
+        if (!name) return;
+
+        fetch('/folders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error creating folder: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to create folder');
+        });
+    }
+
+    // Drag and drop functionality
+    function dragStart(event) {
+        const item = event.target;
+        event.dataTransfer.setData('itemType', item.dataset.itemType);
+        event.dataTransfer.setData('itemId', item.dataset.itemId);
+    }
+
+    function allowDrop(event) {
+        event.preventDefault();
+    }
+
+    function dropItem(event) {
+        event.preventDefault();
+        const itemType = event.dataTransfer.getData('itemType');
+        const itemId = event.dataTransfer.getData('itemId');
+        const folderId = event.target.closest('.folder-item').dataset.folderId;
+
+        fetch(`/folders/${folderId}/items`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                type: itemType,
+                id: itemId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error moving item: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to move item');
+        });
+    }
+</script>
+{% endblock %}
