@@ -14,10 +14,19 @@
                         <label for="jobDescription" class="form-label">Enter Job Description</label>
                         <textarea class="form-control mb-2" id="jobDescription" rows="4" placeholder="Paste the job description here..."></textarea>
 
-                        <label for="resume" class="form-label">Upload Resume or Paste Content</label>
-                        <textarea class="form-control mb-2" id="resume" rows="4" placeholder="Paste your resume content here..."></textarea>
+                        <div class="mb-3">
+                            <label class="form-label">Resume</label>
+                            <div class="input-group mb-2">
+                                <input type="file" class="form-control" id="resumeFile" accept=".pdf,.doc,.docx,.txt">
+                                <button class="btn btn-outline-secondary" type="button" onclick="handleResumeFile()">
+                                    <i data-feather="upload"></i> Upload
+                                </button>
+                            </div>
+                            <div class="text-muted small mb-2">Or paste resume content below:</div>
+                            <textarea class="form-control" id="resume" rows="4" placeholder="Paste your resume content here..."></textarea>
+                        </div>
 
-                        <button class="btn btn-primary" onclick="generateQuestions()">
+                        <button class="btn btn-primary mt-3" onclick="generateQuestions()">
                             <i data-feather="cpu"></i> Generate Questions
                         </button>
                     </div>
@@ -136,6 +145,24 @@ let recordedChunks = [];
 let startTime = null;
 let timerInterval = null;
 
+async function handleResumeFile() {
+    const fileInput = document.getElementById('resumeFile');
+    const file = fileInput.files[0];
+    if (!file) {
+        alert('Please select a file first');
+        return;
+    }
+
+    if (file.type === 'text/plain') {
+        const text = await file.text();
+        document.getElementById('resume').value = text;
+    } else {
+        // For other file types (PDF, DOC, etc.), you might want to extract text
+        // For now, just use the filename as a placeholder
+        document.getElementById('resume').value = `[Content from: ${file.name}]`;
+    }
+}
+
 function updateTimer(type) {
     if (!startTime) return;
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -175,6 +202,10 @@ function startRecording(type) {
 
             document.getElementById(`start${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'none';
             document.getElementById(`stop${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error accessing media devices:', error);
+            alert('Failed to access media devices. Please ensure you have granted permission.');
         });
 }
 
