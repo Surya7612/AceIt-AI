@@ -3,7 +3,6 @@ import logging
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import declarative_base
 from werkzeug.utils import secure_filename
 
 from ai_helper import generate_study_plan, chat_response
@@ -52,29 +51,40 @@ def study_plan():
 def create_study_plan():
     if request.method == 'POST':
         try:
-            from models import StudyPlan
             data = request.get_json()
+            if not data or not all(k in data for k in ('topic', 'duration', 'goals')):
+                return jsonify({'error': 'Missing required fields'}), 400
+
+            # For now, we'll store study plans without user association
+            # This is temporary until user authentication is implemented
+            from models import StudyPlan
             study_plan = StudyPlan(
                 title=data['topic'],
-                category='General',  # Default category
+                category='General',
                 content=generate_study_plan(
                     f"Topic: {data['topic']}\nDuration: {data['duration']} hours\nGoals: {data['goals']}"
                 ),
+                user_id=1,  # Temporary default user ID
                 completion_target=datetime.utcnow() + timedelta(hours=int(data['duration']))
             )
             db.session.add(study_plan)
             db.session.commit()
+
             return jsonify({'success': True, 'plan': study_plan.content})
         except Exception as e:
             logging.error(f"Study plan creation error: {str(e)}")
-            return jsonify({'error': 'Failed to create study plan'}), 500
+            return jsonify({'error': str(e)}), 500
     return render_template('study_plan.html')
-
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
     try:
         from models import Document
+
+        # Debug logging
+        logging.debug(f"Files in request: {request.files}")
+        logging.debug(f"Form data: {request.form}")
+
         uploaded_files = request.files.getlist('files')
         link = request.form.get('link')
         results = []
@@ -86,7 +96,8 @@ def upload_file():
                 original_filename=link,
                 file_type='link',
                 content=link,
-                processed=True
+                processed=True,
+                user_id=1  # Temporary default user ID
             )
             db.session.add(doc)
             results.append({
@@ -97,6 +108,7 @@ def upload_file():
 
         # Handle uploaded files
         for file in uploaded_files:
+            logging.debug(f"Processing file: {file.filename}")
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -111,7 +123,8 @@ def upload_file():
                     original_filename=file.filename,
                     file_type=filename.rsplit('.', 1)[1].lower(),
                     content=content,
-                    processed=bool(content)
+                    processed=bool(content),
+                    user_id=1  # Temporary default user ID
                 )
                 db.session.add(doc)
                 results.append({

@@ -10,14 +10,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Add files
             const fileInput = document.getElementById('files');
+            console.log('Selected files:', fileInput.files);
             Array.from(fileInput.files).forEach(file => {
                 formData.append('files', file);
+                console.log('Appending file:', file.name);
             });
 
             // Add link if present
             const linkInput = document.getElementById('link');
             if (linkInput.value) {
                 formData.append('link', linkInput.value);
+                console.log('Appending link:', linkInput.value);
             }
 
             const progressBar = document.getElementById('uploadProgress');
@@ -27,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 progressBar.style.display = 'block';
                 progressBarInner.style.width = '0%';
 
+                console.log('Sending upload request...');
                 const response = await fetch('/upload', {
                     method: 'POST',
                     body: formData
@@ -34,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 progressBarInner.style.width = '100%';
                 const result = await response.json();
+                console.log('Upload response:', result);
 
                 if (result.success) {
                     alert('Files uploaded successfully!');
@@ -59,12 +64,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const duration = document.getElementById('duration').value;
             const goals = document.getElementById('goals').value;
 
+            console.log('Study plan form data:', { topic, duration, goals });
+
             if (!topic || !duration || !goals) {
                 alert('Please fill in all fields');
                 return;
             }
 
             try {
+                console.log('Sending study plan request...');
                 const response = await fetch('/study-plan/new', {
                     method: 'POST',
                     headers: {
@@ -73,10 +81,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ topic, duration, goals })
                 });
                 const result = await response.json();
+                console.log('Study plan response:', result);
 
                 if (result.success) {
                     document.getElementById('generated-plan').style.display = 'block';
                     const plan = JSON.parse(result.plan);
+                    console.log('Parsed plan:', plan);
+
                     let html = '<div class="study-plan-content">';
                     html += `<h6 class="mb-3">Total Duration: ${plan.total_duration}</h6>`;
                     html += '<h6 class="mb-2">Learning Goals:</h6>';
@@ -128,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
             input.value = '';
 
             try {
+                console.log('Sending chat message:', message);
                 const response = await fetch('/chat', {
                     method: 'POST',
                     headers: {
@@ -136,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ message })
                 });
                 const result = await response.json();
+                console.log('Chat response:', result);
 
                 // Add AI response
                 addMessage('assistant', result.response);
