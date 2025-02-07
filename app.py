@@ -1,6 +1,7 @@
 import os
 import logging
 import random
+import json
 from datetime import datetime
 from flask import request, jsonify, render_template
 from werkzeug.utils import secure_filename
@@ -49,6 +50,7 @@ def generate_interview_questions():
 
         data = request.get_json()
         job_description = data.get('job_description', '')
+        resume = data.get('resume', '')
 
         if not job_description:
             return jsonify({'error': 'Job description is required'}), 400
@@ -63,8 +65,33 @@ def generate_interview_questions():
             InterviewQuestion.query.filter_by(user_id=1).delete()
             db.session.commit()
 
-            # Simple, clear prompt
-            prompt = f"""Generate 5 interview questions based on this job description:
+            # Generate compatibility analysis
+            analysis_prompt = f"""Analyze the compatibility between this job description and resume:
+
+Job Description:
+{job_description}
+
+Resume:
+{resume}
+
+Provide a JSON response with:
+1. score (0-100): Overall compatibility score
+2. strengths: Array of key matching strengths
+3. gaps: Array of areas for improvement"""
+
+            analysis_response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an expert job matcher."},
+                    {"role": "user", "content": analysis_prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+
+            compatibility_data = json.loads(analysis_response.choices[0].message.content)
+
+            # Generate interview questions
+            questions_prompt = f"""Generate 5 interview questions based on this job description:
 
 {job_description}
 
@@ -81,12 +108,11 @@ Category: [Technical/Behavioral]
 Difficulty: [Easy/Medium/Hard]
 """
 
-            logging.info("Sending request to OpenAI")
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an expert interviewer. Format your response exactly as shown in the prompt."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": questions_prompt}
                 ]
             )
 
@@ -97,14 +123,13 @@ Difficulty: [Easy/Medium/Hard]
             current_question = {}
 
             try:
-                # Split into question blocks
+                # Parse questions (existing parsing code remains the same)
                 question_blocks = content.split('\n\n')
 
                 for block in question_blocks:
                     if not block.strip():
                         continue
 
-                    # Start new question if we see a number
                     if block.strip().startswith(('1.', '2.', '3.', '4.', '5.')):
                         if current_question:
                             questions.append(current_question)
@@ -112,14 +137,12 @@ Difficulty: [Easy/Medium/Hard]
 
                         lines = block.strip().split('\n')
 
-                        # Extract question text
                         question_line = lines[0]
                         if ': ' in question_line:
                             current_question['question'] = question_line.split(': ', 1)[1].strip()
                         elif '. ' in question_line:
                             current_question['question'] = question_line.split('. ', 1)[1].strip()
 
-                        # Process remaining lines
                         for line in lines[1:]:
                             line = line.strip()
                             if 'Sample Answer:' in line:
@@ -129,7 +152,6 @@ Difficulty: [Easy/Medium/Hard]
                             elif 'Difficulty:' in line:
                                 current_question['difficulty'] = line.split(':', 1)[1].strip()
 
-                # Add last question
                 if current_question:
                     questions.append(current_question)
 
@@ -166,7 +188,8 @@ Difficulty: [Easy/Medium/Hard]
                         'category': q.category,
                         'difficulty': q.difficulty,
                         'success_rate': q.success_rate
-                    } for q in saved_questions]
+                    } for q in saved_questions],
+                    'compatibility_ranking': compatibility_data
                 })
 
             except Exception as parse_error:
@@ -219,6 +242,99 @@ def test_openai():
             'error': str(e),
             'api_status': 'error'
         }), 500
+
+@app.route('/interview-practice/<int:question_id>/answer', methods=['POST'])
+def submit_answer(question_id):
+    """Submit an answer for an interview question"""
+    try:
+        from models import InterviewPractice, InterviewQuestion
+
+        # Get the question
+        question = InterviewQuestion.query.get_or_404(question_id)
+
+        answer_type = request.form.get('answer_type')
+        if not answer_type:
+            return jsonify({'error': 'Answer type is required'}), 400
+
+        # Create practice record
+        practice = InterviewPractice(
+            user_id=1,  # Hardcoded for now
+            question_id=question_id,
+            answer_type=answer_type
+        )
+
+        if answer_type == 'text':
+            answer = request.form.get('answer')
+            if not answer:
+                return jsonify({'error': 'Answer is required'}), 400
+            practice.user_answer = answer
+
+        else:  # audio or video
+            if 'media_file' not in request.files:
+                return jsonify({'error': 'Media file is required'}), 400
+
+            file = request.files['media_file']
+            if file.filename == '':
+                return jsonify({'error': 'No selected file'}), 400
+
+            filename = secure_filename(f"{question_id}_{datetime.utcnow().timestamp()}.webm")
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            practice.media_url = filename
+            practice.user_answer = f"[{answer_type.upper()} Response]"
+
+        # Generate AI feedback
+        try:
+            client = OpenAI()
+            # Prepare prompt based on question type
+            context = f"""Question: {question.question}\n
+                     Expected Answer: {question.sample_answer}\n
+                     User's Answer: {practice.user_answer}\n
+                     Category: {question.category}\n"""
+
+            prompt = f"""Analyze this interview answer and provide feedback:
+                     {context}
+                     Provide feedback in JSON format with these fields:
+                     1. score (0-100)
+                     2. feedback (detailed analysis)
+                     3. confidence_score (0-100, only for audio/video)"""
+
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an expert interview assessor."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+
+            feedback_data = response.choices[0].message.content
+            feedback_dict = json.loads(feedback_data)
+
+            practice.score = feedback_dict.get('score', 0)
+            practice.ai_feedback = feedback_dict.get('feedback', '')
+            if answer_type in ['audio', 'video']:
+                practice.confidence_score = feedback_dict.get('confidence_score', 0)
+
+            db.session.add(practice)
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'feedback': {
+                    'score': practice.score,
+                    'feedback': practice.ai_feedback,
+                    'confidence_score': practice.confidence_score if hasattr(practice, 'confidence_score') else None
+                }
+            })
+
+        except Exception as e:
+            logging.error(f"Error generating AI feedback: {str(e)}")
+            return jsonify({'error': 'Failed to generate AI feedback'}), 500
+
+    except Exception as e:
+        logging.error(f"Error submitting answer: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 # Initialize database
 with app.app_context():

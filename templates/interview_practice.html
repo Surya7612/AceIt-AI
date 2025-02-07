@@ -69,6 +69,39 @@
         </div>
     </div>
 
+    <!-- Compatibility Ranking Section -->
+    <div class="row mb-4" id="compatibilitySection" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Job Compatibility Analysis</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Overall Match Score</h6>
+                            <div class="progress mb-3">
+                                <div class="progress-bar" id="compatibilityScore" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-12 mb-3">
+                                    <h6 class="text-success">Key Strengths</h6>
+                                    <ul id="strengthsList" class="list-unstyled">
+                                    </ul>
+                                </div>
+                                <div class="col-12">
+                                    <h6 class="text-warning">Areas for Growth</h6>
+                                    <ul id="gapsList" class="list-unstyled">
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Questions List -->
     <div class="row">
         <div class="col-md-4">
@@ -213,6 +246,7 @@ window.generateQuestions = function() {
     // Clear existing questions
     document.getElementById('questionsList').innerHTML = '';
     document.getElementById('practiceArea').style.display = 'none';
+    document.getElementById('compatibilitySection').style.display = 'none';
 
     fetch('/interview-practice/generate', {
         method: 'POST',
@@ -234,6 +268,26 @@ window.generateQuestions = function() {
             // Update questions list
             const questionsList = document.getElementById('questionsList');
             questionsList.innerHTML = data.questions.map(q => createQuestionElement(q)).join('');
+
+            // Update compatibility section
+            const compatibilitySection = document.getElementById('compatibilitySection');
+            compatibilitySection.style.display = 'block';
+
+            const compatibilityScore = document.getElementById('compatibilityScore');
+            compatibilityScore.style.width = `${data.compatibility_ranking.score}%`;
+            compatibilityScore.setAttribute('aria-valuenow', data.compatibility_ranking.score);
+
+            // Update strengths and gaps
+            const strengthsList = document.getElementById('strengthsList');
+            const gapsList = document.getElementById('gapsList');
+
+            strengthsList.innerHTML = data.compatibility_ranking.strengths
+                .map(strength => `<li><i data-feather="check-circle" class="text-success me-2"></i>${strength}</li>`)
+                .join('');
+
+            gapsList.innerHTML = data.compatibility_ranking.gaps
+                .map(gap => `<li><i data-feather="alert-circle" class="text-warning me-2"></i>${gap}</li>`)
+                .join('');
 
             // Refresh Feather icons
             feather.replace();
