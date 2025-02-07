@@ -29,10 +29,11 @@ class StudyPlan(db.Model):
     last_studied = db.Column(db.DateTime)  # Track last study session
     total_study_time = db.Column(db.Integer, default=0)  # Total minutes spent studying
 
-    # Relationships
+    # Relationships with cascade delete
     documents = db.relationship('Document', secondary='study_plan_documents', 
-                              backref=db.backref('study_plans', lazy=True))
-    study_sessions = db.relationship('StudySession', backref='study_plan', lazy=True)
+                           backref=db.backref('study_plans', lazy=True))
+    study_sessions = db.relationship('StudySession', backref='study_plan', lazy=True,
+                                   cascade='all, delete-orphan')  # Add cascade delete
 
     __table_args__ = (
         Index('idx_study_plan_user_id_created', 'user_id', 'created_at'),

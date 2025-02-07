@@ -77,50 +77,24 @@ def create_study_plan():
             difficulty = request.form.get('difficulty')
             goals = request.form.get('goals')
 
+            logging.info(f"Received form data: topic={topic}, priority={priority}, daily_time={daily_time}, "
+                        f"completion_date={completion_date}, difficulty={difficulty}")
+
             if not all([topic, priority, daily_time, completion_date, difficulty, goals]):
                 return jsonify({'error': 'Missing required fields'}), 400
 
             documents = []
 
-            # Handle file uploads
-            uploaded_files = request.files.getlist('files')
-            for file in uploaded_files:
-                if file and allowed_file(file.filename):
-                    filename = secure_filename(file.filename)
-                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(filepath)
-
-                    file_type = 'image' if filename.lower().endswith(('.png', '.jpg', '.jpeg')) else 'pdf'
-                    doc = Document(
-                        filename=filename,
-                        original_filename=file.filename,
-                        file_type=file_type,
-                        processed=False,
-                        user_id=1  # Default user
-                    )
-                    db.session.add(doc)
-                    documents.append(doc)
-
-            # Handle URL
-            link = request.form.get('link')
-            if link:
-                doc = Document(
-                    filename=link,
-                    original_filename=link,
-                    file_type='link',
-                    content=link,
-                    processed=False,
-                    user_id=1
-                )
-                db.session.add(doc)
-                documents.append(doc)
-
             # If no materials provided, generate AI content
             if not documents:
                 logging.info(f"No materials provided, generating AI content for topic: {topic}")
-                client = OpenAI()
-
                 try:
+                    client = OpenAI()
+
+                    # Enhanced error handling for OpenAI client
+                    if not os.environ.get("OPENAI_API_KEY"):
+                        raise ValueError("OpenAI API key is not set")
+
                     # Generate AI study material with enhanced prompt
                     content_prompt = f"""Create a comprehensive study plan and materials for:
 Topic: {topic}
@@ -138,6 +112,7 @@ Ensure the study plan:
 
 Focus on addressing the specific learning objectives while covering the topic thoroughly."""
 
+                    logging.info("Sending request to OpenAI with prompt")
                     ai_content = client.chat.completions.create(
                         model="gpt-4o",  # Using the latest model
                         messages=[
@@ -204,7 +179,7 @@ Focus on addressing the specific learning objectives while covering the topic th
                     )
 
                     content = ai_content.choices[0].message.content
-                    logging.info(f"Generated AI content: {content[:100]}...")  # Log first 100 chars
+                    logging.info(f"Generated AI content: {content[:200]}...")  # Log first 200 chars
 
                     # Create a document with AI-generated content
                     doc = Document(
@@ -218,45 +193,57 @@ Focus on addressing the specific learning objectives while covering the topic th
                     )
                     db.session.add(doc)
                     documents.append(doc)
+                    logging.info("Successfully created AI document")
                 except Exception as e:
-                    logging.error(f"Error generating AI content: {str(e)}")
+                    logging.error(f"Error generating AI content: {str(e)}", exc_info=True)
                     return jsonify({'error': f'Failed to generate AI content: {str(e)}'}), 500
 
             db.session.flush()  # Get IDs for the documents
 
             # Generate optimized study schedule
-            schedule = generate_study_schedule(
-                topic=topic,
-                priority=int(priority),
-                daily_time=int(daily_time),
-                completion_date=completion_date,
-                difficulty=difficulty,
-                goals=goals
-            )
+            try:
+                schedule = generate_study_schedule(
+                    topic=topic,
+                    priority=int(priority),
+                    daily_time=int(daily_time),
+                    completion_date=completion_date,
+                    difficulty=difficulty,
+                    goals=goals
+                )
+                logging.info("Successfully generated study schedule")
+            except Exception as e:
+                logging.error(f"Error generating study schedule: {str(e)}", exc_info=True)
+                return jsonify({'error': f'Failed to generate study schedule: {str(e)}'}), 500
 
             # Create study plan
-            study_plan = StudyPlan(
-                title=topic,
-                category='General',  # Will be updated based on documents
-                content=json.dumps(schedule),
-                user_id=1,  # Default user
-                priority=int(priority),
-                daily_study_time=int(daily_time),
-                difficulty_level=difficulty,
-                completion_target=datetime.strptime(completion_date, '%Y-%m-%d'),
-                schedule=json.dumps(schedule.get('daily_sessions', [])),
-                progress=0
-            )
+            try:
+                study_plan = StudyPlan(
+                    title=topic,
+                    category='General',  # Will be updated based on documents
+                    content=json.dumps(schedule),
+                    user_id=1,  # Default user
+                    priority=int(priority),
+                    daily_study_time=int(daily_time),
+                    difficulty_level=difficulty,
+                    completion_target=datetime.strptime(completion_date, '%Y-%m-%d'),
+                    schedule=json.dumps(schedule.get('daily_sessions', [])),
+                    progress=0
+                )
 
-            # Associate documents with study plan
-            study_plan.documents.extend(documents)
+                # Associate documents with study plan
+                study_plan.documents.extend(documents)
 
-            db.session.add(study_plan)
-            db.session.commit()
+                db.session.add(study_plan)
+                db.session.commit()
+                logging.info("Successfully created study plan")
 
-            return jsonify({'success': True, 'plan': schedule})
+                return jsonify({'success': True, 'plan': schedule})
+            except Exception as e:
+                logging.error(f"Error creating study plan: {str(e)}", exc_info=True)
+                return jsonify({'error': f'Failed to create study plan: {str(e)}'}), 500
+
         except Exception as e:
-            logging.error(f"Study plan creation error: {str(e)}")
+            logging.error(f"Study plan creation error: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
 
     plans = StudyPlan.query.order_by(StudyPlan.created_at.desc()).all()
