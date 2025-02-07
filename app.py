@@ -629,7 +629,7 @@ def generate_interview_questions():
 
             try:
                 response = client.chat.completions.create(
-                    model="gpt-4o",  # Changed from gpt-4 to gpt-4o
+                    model="gpt-4",  # Changed back to gpt-4 as it's the correct model name
                     messages=[
                         {"role": "system", "content": system_message},
                         {"role": "user", "content": user_message}
