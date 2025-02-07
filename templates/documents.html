@@ -4,73 +4,90 @@
 <div class="row">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Uploaded Documents</h5>
+                <button id="combine-selected" class="btn btn-primary" disabled>
+                    <i data-feather="layers"></i> Create Combined Study Plan
+                </button>
             </div>
             <div class="card-body">
                 {% if documents %}
                     <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Filename</th>
-                                    <th>Type</th>
-                                    <th>Upload Date</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for doc in documents %}
-                                <tr>
-                                    <td>{{ doc.original_filename }}</td>
-                                    <td>{{ doc.file_type }}</td>
-                                    <td>{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                    <td>
-                                        {% if doc.processed %}
-                                            <span class="badge bg-success">Processed</span>
-                                        {% else %}
-                                            <span class="badge bg-warning">Processing</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="btn-group">
+                        <form id="combine-form">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="select-all">
+                                            </div>
+                                        </th>
+                                        <th>Filename</th>
+                                        <th>Type</th>
+                                        <th>Upload Date</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for doc in documents %}
+                                    <tr>
+                                        <td>
+                                            <div class="form-check">
+                                                <input class="form-check-input doc-select" type="checkbox" 
+                                                       name="selected_docs" value="{{ doc.id }}"
+                                                       {% if not doc.processed %}disabled{% endif %}>
+                                            </div>
+                                        </td>
+                                        <td>{{ doc.original_filename }}</td>
+                                        <td>{{ doc.file_type }}</td>
+                                        <td>{{ doc.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
                                             {% if doc.processed %}
-                                                <a href="{{ url_for('view_document', doc_id=doc.id) }}" 
-                                                   class="btn btn-sm btn-primary">
-                                                    View Study Material
-                                                </a>
+                                                <span class="badge bg-success">Processed</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">Processing</span>
                                             {% endif %}
-                                            {% if doc.content %}
-                                                <button class="btn btn-sm btn-outline-secondary" 
-                                                        data-bs-toggle="modal" 
-                                                        data-bs-target="#content-{{ doc.id }}">
-                                                    Raw Content
-                                                </button>
-                                            {% endif %}
-                                        </div>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group">
+                                                {% if doc.processed %}
+                                                    <a href="{{ url_for('view_document', doc_id=doc.id) }}" 
+                                                       class="btn btn-sm btn-primary">
+                                                        View Study Material
+                                                    </a>
+                                                {% endif %}
+                                                {% if doc.content %}
+                                                    <button class="btn btn-sm btn-outline-secondary" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#content-{{ doc.id }}">
+                                                        Raw Content
+                                                    </button>
+                                                {% endif %}
+                                            </div>
 
-                                        {% if doc.content %}
-                                        <!-- Content Modal -->
-                                        <div class="modal fade" id="content-{{ doc.id }}" tabindex="-1">
-                                            <div class="modal-dialog modal-lg">
-                                                <div class="modal-content">
-                                                    <div class="modal-header">
-                                                        <h5 class="modal-title">{{ doc.original_filename }}</h5>
-                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                                    </div>
-                                                    <div class="modal-body">
-                                                        <pre class="content-preview">{{ doc.content }}</pre>
+                                            {% if doc.content %}
+                                            <!-- Content Modal -->
+                                            <div class="modal fade" id="content-{{ doc.id }}" tabindex="-1">
+                                                <div class="modal-dialog modal-lg">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title">{{ doc.original_filename }}</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <pre class="content-preview">{{ doc.content }}</pre>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </form>
                     </div>
                 {% else %}
                     <p class="text-center my-5">No documents uploaded yet.</p>
@@ -79,4 +96,70 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('select-all');
+    const docSelects = document.querySelectorAll('.doc-select:not([disabled])');
+    const combineBtn = document.getElementById('combine-selected');
+    const combineForm = document.getElementById('combine-form');
+
+    // Handle select all checkbox
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            docSelects.forEach(checkbox => {
+                checkbox.checked = selectAll.checked;
+            });
+            updateCombineButton();
+        });
+    }
+
+    // Handle individual checkboxes
+    docSelects.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateCombineButton();
+            // Update select all checkbox
+            if (selectAll) {
+                selectAll.checked = Array.from(docSelects).every(cb => cb.checked);
+            }
+        });
+    });
+
+    // Update combine button state
+    function updateCombineButton() {
+        const selectedCount = document.querySelectorAll('.doc-select:checked').length;
+        combineBtn.disabled = selectedCount < 2;
+    }
+
+    // Handle combine button click
+    if (combineBtn) {
+        combineBtn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const selectedDocs = Array.from(document.querySelectorAll('.doc-select:checked')).map(cb => cb.value);
+
+            try {
+                const response = await fetch('/documents/combine', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        document_ids: selectedDocs
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    window.location.href = result.redirect_url;
+                } else {
+                    alert('Error creating combined study plan: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to create combined study plan. Please try again.');
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

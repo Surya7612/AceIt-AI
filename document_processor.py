@@ -148,3 +148,83 @@ class DocumentProcessor:
         except Exception as e:
             logger.error(f"Error generating structured content: {str(e)}", exc_info=True)
             raise
+
+    def combine_documents(self, documents: list) -> Dict[str, Any]:
+        """Combine multiple documents into a single structured study document"""
+        try:
+            logger.debug(f"Combining {len(documents)} documents")
+
+            # Combine all document content
+            combined_content = []
+            for doc in documents:
+                if doc.structured_content:
+                    structured = json.loads(doc.structured_content)
+                    combined_content.append(f"Document: {doc.original_filename}\n")
+                    combined_content.append(f"Content: {structured['content'] if 'content' in structured else structured['summary']}\n")
+                elif doc.content:
+                    combined_content.append(f"Document: {doc.original_filename}\n")
+                    combined_content.append(f"Content: {doc.content}\n")
+
+            if not combined_content:
+                raise ValueError("No valid content found in selected documents")
+
+            combined_text = "\n".join(combined_content)
+
+            # Generate new structured content from combined documents
+            response = openai.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """Create a unified study document that combines and organizes the provided content from multiple sources.
+                        Ensure the output follows this JSON format:
+                        {
+                            "title": "Combined topic or subject",
+                            "summary": "Overview synthesizing all sources",
+                            "difficulty_level": "beginner|intermediate|advanced",
+                            "estimated_study_time": "Total time in minutes",
+                            "key_concepts": [
+                                {
+                                    "name": "Concept name",
+                                    "description": "Brief explanation",
+                                    "source_document": "Original filename"
+                                }
+                            ],
+                            "sections": [
+                                {
+                                    "heading": "Section title",
+                                    "content": "Synthesized explanation",
+                                    "key_points": ["Important points"],
+                                    "examples": ["Examples from various sources"],
+                                    "source_documents": ["List of source documents"]
+                                }
+                            ],
+                            "practice_questions": [
+                                {
+                                    "question": "Study question",
+                                    "answer": "Detailed answer",
+                                    "explanation": "Why this answer is correct",
+                                    "difficulty": "easy|medium|hard",
+                                    "source_document": "Original filename"
+                                }
+                            ],
+                            "connections": [
+                                {
+                                    "topic": "Related topic name",
+                                    "explanation": "How topics connect across documents"
+                                }
+                            ]
+                        }"""
+                    },
+                    {
+                        "role": "user",
+                        "content": combined_text
+                    }
+                ],
+                response_format={"type": "json_object"}
+            )
+
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            logger.error(f"Error combining documents: {str(e)}", exc_info=True)
+            raise

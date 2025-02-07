@@ -2,7 +2,7 @@ import os
 import logging
 import json
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, url_for
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from ai_helper import generate_study_plan, chat_response
@@ -199,6 +199,44 @@ def process_chat():
     except Exception as e:
         logging.error(f"Chat error: {str(e)}")
         return jsonify({'error': 'Failed to generate response'}), 500
+
+@app.route('/documents/combine', methods=['POST'])
+def combine_documents():
+    try:
+        data = request.get_json()
+        if not data or 'document_ids' not in data:
+            return jsonify({'error': 'No documents selected'}), 400
+
+        from models import Document, StudyPlan
+
+        # Get selected documents
+        documents = Document.query.filter(Document.id.in_(data['document_ids'])).all()
+        if len(documents) < 2:
+            return jsonify({'error': 'Please select at least 2 documents'}), 400
+
+        # Combine documents using document processor
+        combined_content = doc_processor.combine_documents(documents)
+
+        # Create a new study plan from combined content
+        study_plan = StudyPlan(
+            title=f"Combined Study Plan: {combined_content['title']}",
+            category='Combined',
+            content=json.dumps(combined_content),
+            user_id=1,  # Default user
+            completion_target=datetime.utcnow() + timedelta(days=7)  # Default 1 week
+        )
+
+        db.session.add(study_plan)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'redirect_url': url_for('view_document', doc_id=study_plan.id)
+        })
+
+    except Exception as e:
+        logging.error(f"Error combining documents: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 with app.app_context():
     # Import models here to avoid circular imports
