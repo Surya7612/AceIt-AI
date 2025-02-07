@@ -1,8 +1,9 @@
 import os
 import logging
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import declarative_base
 from werkzeug.utils import secure_filename
 
 from ai_helper import generate_study_plan, chat_response
@@ -11,14 +12,11 @@ from ocr_helper import extract_text_from_image
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
 
-class Base(DeclarativeBase):
-    pass
-
-db = SQLAlchemy(model_class=Base)
+db = SQLAlchemy()
 app = Flask(__name__)
 
 # Configuration
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_key_replace_in_production")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or "a secret key"
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
@@ -50,36 +48,85 @@ def chat():
 def study_plan():
     return render_template('study_plan.html')
 
+@app.route('/study-plan/new', methods=['GET', 'POST'])
+def create_study_plan():
+    if request.method == 'POST':
+        try:
+            from models import StudyPlan
+            data = request.get_json()
+            study_plan = StudyPlan(
+                title=data['topic'],
+                category='General',  # Default category
+                content=generate_study_plan(
+                    f"Topic: {data['topic']}\nDuration: {data['duration']} hours\nGoals: {data['goals']}"
+                ),
+                completion_target=datetime.utcnow() + timedelta(hours=int(data['duration']))
+            )
+            db.session.add(study_plan)
+            db.session.commit()
+            return jsonify({'success': True, 'plan': study_plan.content})
+        except Exception as e:
+            logging.error(f"Study plan creation error: {str(e)}")
+            return jsonify({'error': 'Failed to create study plan'}), 500
+    return render_template('study_plan.html')
+
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
+    try:
+        from models import Document
+        uploaded_files = request.files.getlist('files')
+        link = request.form.get('link')
+        results = []
 
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
+        # Handle link if provided
+        if link:
+            doc = Document(
+                filename=link,
+                original_filename=link,
+                file_type='link',
+                content=link,
+                processed=True
+            )
+            db.session.add(doc)
+            results.append({
+                'type': 'link',
+                'filename': link,
+                'success': True
+            })
 
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+        # Handle uploaded files
+        for file in uploaded_files:
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
 
-        # Extract text from image if it's an image file
-        if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-            extracted_text = extract_text_from_image(filepath)
-            if extracted_text:
-                return jsonify({
+                content = None
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    content = extract_text_from_image(filepath)
+
+                doc = Document(
+                    filename=filename,
+                    original_filename=file.filename,
+                    file_type=filename.rsplit('.', 1)[1].lower(),
+                    content=content,
+                    processed=bool(content)
+                )
+                db.session.add(doc)
+                results.append({
+                    'type': 'file',
+                    'filename': filename,
                     'success': True,
-                    'text': extracted_text,
-                    'filename': filename
+                    'text': content if content else None
                 })
 
-        return jsonify({
-            'success': True,
-            'filename': filename
-        })
+        db.session.commit()
+        return jsonify({'success': True, 'results': results})
 
-    return jsonify({'error': 'File type not allowed'}), 400
+    except Exception as e:
+        logging.error(f"Upload error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/chat', methods=['POST'])
 def process_chat():
@@ -94,20 +141,7 @@ def process_chat():
         logging.error(f"Chat error: {str(e)}")
         return jsonify({'error': 'Failed to generate response'}), 500
 
-@app.route('/generate-plan', methods=['POST'])
-def generate_plan():
-    data = request.get_json()
-    if not data or not all(k in data for k in ('topic', 'duration', 'goals')):
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    try:
-        study_plan = generate_study_plan(
-            f"Topic: {data['topic']}\nDuration: {data['duration']} hours\nGoals: {data['goals']}"
-        )
-        return jsonify({'plan': study_plan})
-    except Exception as e:
-        logging.error(f"Study plan generation error: {str(e)}")
-        return jsonify({'error': 'Failed to generate study plan'}), 500
-
 with app.app_context():
+    # Import models here to avoid circular imports
+    import models
     db.create_all()
