@@ -9,6 +9,7 @@ from ai_helper import chat_response, generate_study_schedule, update_study_plan
 from ocr_helper import extract_text_from_image
 from document_processor import DocumentProcessor
 import openai # Added import for OpenAI
+from openai import OpenAI # Added this import
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -67,8 +68,7 @@ def study_plan():
 def create_study_plan():
     if request.method == 'POST':
         try:
-            from models import StudyPlan, Document
-            # Handle form data
+            # Get form data
             topic = request.form.get('topic')
             priority = request.form.get('priority')
             daily_time = request.form.get('daily_time')
@@ -117,30 +117,60 @@ def create_study_plan():
             # If no materials provided, generate AI content
             if not documents:
                 logging.info(f"No materials provided, generating AI content for topic: {topic}")
+                client = OpenAI()
+
                 # Generate AI study material
-                ai_content = openai.chat.completions.create(
-                    model="gpt-4o",
+                ai_content = client.chat.completions.create(
+                    model="gpt-4o",  # Using the latest model
                     messages=[
                         {
                             "role": "system",
-                            "content": """Create comprehensive study material for the given topic.
-                            Include detailed explanations, examples, practice problems, and key concepts.
-                            Structure the content in a clear, organized manner."""
+                            "content": """Create comprehensive study material in JSON format with the following structure:
+                            {
+                                "title": "Study Topic",
+                                "difficulty_level": "beginner|intermediate|advanced",
+                                "estimated_study_time": number,
+                                "summary": "Brief overview",
+                                "key_concepts": [
+                                    {
+                                        "name": "Concept name",
+                                        "description": "Detailed explanation"
+                                    }
+                                ],
+                                "sections": [
+                                    {
+                                        "heading": "Section title",
+                                        "content": "Detailed content",
+                                        "key_points": ["point 1", "point 2"],
+                                        "examples": ["example 1", "example 2"]
+                                    }
+                                ],
+                                "practice_questions": [
+                                    {
+                                        "question": "Question text",
+                                        "answer": "Answer text",
+                                        "explanation": "Detailed explanation",
+                                        "difficulty": "easy|medium|hard"
+                                    }
+                                ]
+                            }"""
                         },
                         {
                             "role": "user",
-                            "content": f"Create study material for: {topic}\nDifficulty: {difficulty}\nGoals: {goals}"
+                            "content": f"Create comprehensive study material for: {topic}\nDifficulty: {difficulty}\nLearning Goals: {goals}"
                         }
                     ],
                     response_format={"type": "json_object"}
                 )
+
+                content = ai_content.choices[0].message.content
 
                 # Create a document with AI-generated content
                 doc = Document(
                     filename=f"ai_generated_{topic.lower().replace(' ', '_')}.txt",
                     original_filename=f"AI Generated Content - {topic}",
                     file_type='text',
-                    content=ai_content.choices[0].message.content,
+                    content=content,
                     processed=True,
                     category='General',  # Will be updated by AI processing
                     user_id=1
@@ -193,6 +223,19 @@ def create_study_plan():
 
     plans = StudyPlan.query.order_by(StudyPlan.created_at.desc()).all()
     return render_template('study_plan.html', plans=plans)
+
+@app.route('/study-plan/<int:plan_id>/delete', methods=['POST'])
+def delete_study_plan(plan_id):
+    """Delete a study plan"""
+    try:
+        from models import StudyPlan
+        study_plan = StudyPlan.query.get_or_404(plan_id)
+        db.session.delete(study_plan)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error deleting study plan: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/study-plan/<int:plan_id>/session/start', methods=['POST'])
 def start_study_session(plan_id):

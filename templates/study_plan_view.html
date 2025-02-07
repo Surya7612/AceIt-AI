@@ -10,6 +10,21 @@
                     <small class="text-muted">Created {{ study_plan.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    <button id="deleteStudyPlan" class="btn btn-sm btn-outline-danger" 
+                            onclick="deleteStudyPlan({{ study_plan.id }})">
+                        <i data-feather="trash-2"></i> Delete Plan
+                    </button>
+                    <div id="studySessionControls">
+                        <button id="startSession" class="btn btn-sm btn-success" onclick="startStudySession()">
+                            <i data-feather="play"></i> Start Session
+                        </button>
+                        <button id="endSession" class="btn btn-sm btn-warning d-none" onclick="endStudySession()">
+                            <i data-feather="stop"></i> End Session
+                        </button>
+                        <div id="sessionTimer" class="d-none">
+                            Time: <span id="timerDisplay">00:00:00</span>
+                        </div>
+                    </div>
                     <a href="{{ url_for('documents') }}" class="btn btn-sm btn-outline-secondary">
                         <i data-feather="arrow-left"></i> Back to Documents
                     </a>
@@ -29,6 +44,11 @@
                                 <span class="badge bg-secondary">
                                     <i data-feather="clock"></i> {{ parsed_content.estimated_study_time }} minutes
                                 </span>
+                                {% if study_plan.total_study_time %}
+                                <span class="badge bg-success">
+                                    <i data-feather="clock"></i> Total Studied: {{ study_plan.total_study_time }} minutes
+                                </span>
+                                {% endif %}
                             </div>
                             <div class="alert alert-light">
                                 <h6 class="alert-heading mb-2">Summary</h6>
@@ -122,8 +142,8 @@
                                                 <div class="d-flex align-items-center gap-2 w-100">
                                                     <span>{{ qa.question }}</span>
                                                     <span class="badge bg-{{ 'success' if qa.difficulty == 'easy' 
-                                                                           else 'warning' if qa.difficulty == 'medium' 
-                                                                           else 'danger' }} ms-auto">
+                                                                            else 'warning' if qa.difficulty == 'medium' 
+                                                                            else 'danger' }} ms-auto">
                                                         {{ qa.difficulty }}
                                                     </span>
                                                 </div>
@@ -184,4 +204,110 @@
         </div>
     </div>
 </div>
+
+<script>
+let currentSessionId = null;
+let startTime = null;
+let timerInterval = null;
+
+function updateTimer() {
+    if (!startTime) return;
+
+    const now = new Date();
+    const diff = new Date(now - startTime);
+    const hours = diff.getUTCHours().toString().padStart(2, '0');
+    const minutes = diff.getUTCMinutes().toString().padStart(2, '0');
+    const seconds = diff.getUTCSeconds().toString().padStart(2, '0');
+
+    document.getElementById('timerDisplay').textContent = `${hours}:${minutes}:${seconds}`;
+}
+
+async function startStudySession() {
+    try {
+        const response = await fetch(`/study-plan/{{ study_plan.id }}/session/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            currentSessionId = result.session_id;
+            startTime = new Date();
+            document.getElementById('startSession').classList.add('d-none');
+            document.getElementById('endSession').classList.remove('d-none');
+            document.getElementById('sessionTimer').classList.remove('d-none');
+            timerInterval = setInterval(updateTimer, 1000);
+        } else {
+            alert('Failed to start study session');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to start study session');
+    }
+}
+
+async function endStudySession() {
+    if (!currentSessionId) return;
+
+    try {
+        const response = await fetch(`/study-plan/{{ study_plan.id }}/session/${currentSessionId}/end`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                notes: '' // Optional notes can be added here
+            })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            clearInterval(timerInterval);
+            document.getElementById('startSession').classList.remove('d-none');
+            document.getElementById('endSession').classList.add('d-none');
+            document.getElementById('sessionTimer').classList.add('d-none');
+            currentSessionId = null;
+            startTime = null;
+            // Refresh page to show updated study time
+            location.reload();
+        } else {
+            alert('Failed to end study session');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to end study session');
+    }
+}
+
+async function deleteStudyPlan(planId) {
+    if (!confirm('Are you sure you want to delete this study plan?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/study-plan/${planId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            window.location.href = '/study-plan';
+        } else {
+            alert('Failed to delete study plan');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to delete study plan');
+    }
+}
+
+// Initialize Feather icons after dynamic content is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    feather.replace();
+});
+</script>
 {% endblock %}
