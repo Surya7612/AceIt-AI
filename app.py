@@ -583,7 +583,7 @@ Job Description:
 
             logging.info("Sending request to OpenAI")
             response = client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+                model="gpt-4",  # Changed back to gpt-4 for stability
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
@@ -602,20 +602,22 @@ Job Description:
 
                 for section in sections:
                     if section.startswith(('1.', '2.', '3.', '4.', '5.')):
-                        if current_question:
+                        if current_question and len(current_question) >= 3:  # Ensure we have at least question, category, and difficulty
                             questions.append(current_question)
                             current_question = {}
                         lines = section.split('\n')
-                        current_question['question'] = lines[0].split('. ', 1)[1]
+                        question_text = lines[0].split('. ', 1)[1] if len(lines[0].split('. ', 1)) > 1 else lines[0]
+                        current_question['question'] = question_text
                         for line in lines[1:]:
-                            if line.startswith('Sample Answer:'):
-                                current_question['sample_answer'] = line.replace('Sample Answer:', '').strip()
-                            elif line.startswith('Category:'):
-                                current_question['category'] = line.replace('Category:', '').strip()
-                            elif line.startswith('Difficulty:'):
-                                current_question['difficulty'] = line.replace('Difficulty:', '').strip()
+                            line = line.strip()
+                            if line.lower().startswith('sample answer:'):
+                                current_question['sample_answer'] = line.replace('Sample Answer:', '', 1).strip()
+                            elif line.lower().startswith('type:') or line.lower().startswith('category:'):
+                                current_question['category'] = line.split(':', 1)[1].strip()
+                            elif line.lower().startswith('difficulty:'):
+                                current_question['difficulty'] = line.split(':', 1)[1].strip()
 
-                if current_question:
+                if current_question and len(current_question) >= 3:
                     questions.append(current_question)
 
                 if not questions:
@@ -841,8 +843,7 @@ def test_openai():
 
         try:
             # Try a simple completion
-            response = client.chat.completions.create(
-                model="gpt-4",
+            response = client.chat.completions.create(                model="gpt-4",
                 messages=[
                     {"role": "user", "content": "Say 'OpenAI connection working!'"}
                 ]
