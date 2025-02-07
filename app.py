@@ -56,10 +56,12 @@ def generate_interview_questions():
             return jsonify({'error': 'Job description is required'}), 400
 
         try:
-            client = OpenAI()
             if not os.environ.get("OPENAI_API_KEY"):
                 logging.error("OpenAI API key is not set")
                 return jsonify({'error': 'OpenAI API key is not configured'}), 500
+
+            client = OpenAI()
+            logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
 
             # Clear existing questions
             InterviewQuestion.query.filter_by(user_id=1).delete()
@@ -79,16 +81,19 @@ Provide a JSON response with:
 2. strengths: Array of key matching strengths
 3. gaps: Array of areas for improvement"""
 
-            analysis_response = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are an expert job matcher."},
-                    {"role": "user", "content": analysis_prompt}
-                ],
-                response_format={"type": "json_object"}
-            )
-
-            compatibility_data = json.loads(analysis_response.choices[0].message.content)
+            try:
+                analysis_response = client.chat.completions.create(
+                    model="gpt-4o",  # Updated to latest model
+                    messages=[
+                        {"role": "system", "content": "You are an expert job matcher."},
+                        {"role": "user", "content": analysis_prompt}
+                    ],
+                    response_format={"type": "json_object"}
+                )
+                compatibility_data = json.loads(analysis_response.choices[0].message.content)
+            except Exception as e:
+                logging.error(f"Error generating compatibility analysis: {str(e)}")
+                compatibility_data = {"score": 0, "strengths": [], "gaps": []}
 
             # Generate interview questions
             questions_prompt = f"""Generate 5 interview questions based on this job description:
@@ -109,7 +114,7 @@ Difficulty: [Easy/Medium/Hard]
 """
 
             response = client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o",  # Updated to latest model
                 messages=[
                     {"role": "system", "content": "You are an expert interviewer. Format your response exactly as shown in the prompt."},
                     {"role": "user", "content": questions_prompt}
@@ -122,80 +127,72 @@ Difficulty: [Easy/Medium/Hard]
             questions = []
             current_question = {}
 
-            try:
-                # Parse questions (existing parsing code remains the same)
-                question_blocks = content.split('\n\n')
+            # Parse the response
+            question_blocks = content.split('\n\n')
+            for block in question_blocks:
+                if not block.strip():
+                    continue
 
-                for block in question_blocks:
-                    if not block.strip():
-                        continue
+                if block.strip().startswith(('1.', '2.', '3.', '4.', '5.')):
+                    if current_question:
+                        questions.append(current_question)
+                        current_question = {}
 
-                    if block.strip().startswith(('1.', '2.', '3.', '4.', '5.')):
-                        if current_question:
-                            questions.append(current_question)
-                            current_question = {}
+                    lines = block.strip().split('\n')
+                    question_line = lines[0]
+                    if ': ' in question_line:
+                        current_question['question'] = question_line.split(': ', 1)[1].strip()
+                    elif '. ' in question_line:
+                        current_question['question'] = question_line.split('. ', 1)[1].strip()
 
-                        lines = block.strip().split('\n')
+                    for line in lines[1:]:
+                        line = line.strip()
+                        if 'Sample Answer:' in line:
+                            current_question['sample_answer'] = line.split(':', 1)[1].strip()
+                        elif 'Category:' in line:
+                            current_question['category'] = line.split(':', 1)[1].strip()
+                        elif 'Difficulty:' in line:
+                            current_question['difficulty'] = line.split(':', 1)[1].strip()
 
-                        question_line = lines[0]
-                        if ': ' in question_line:
-                            current_question['question'] = question_line.split(': ', 1)[1].strip()
-                        elif '. ' in question_line:
-                            current_question['question'] = question_line.split('. ', 1)[1].strip()
+            if current_question:
+                questions.append(current_question)
 
-                        for line in lines[1:]:
-                            line = line.strip()
-                            if 'Sample Answer:' in line:
-                                current_question['sample_answer'] = line.split(':', 1)[1].strip()
-                            elif 'Category:' in line:
-                                current_question['category'] = line.split(':', 1)[1].strip()
-                            elif 'Difficulty:' in line:
-                                current_question['difficulty'] = line.split(':', 1)[1].strip()
+            if not questions:
+                logging.error("No questions were parsed from the response")
+                return jsonify({'error': 'Failed to generate questions'}), 500
 
-                if current_question:
-                    questions.append(current_question)
+            # Save questions to database
+            saved_questions = []
+            for q in questions:
+                if 'question' not in q:
+                    continue
 
-                if not questions:
-                    logging.error("No questions were parsed from the response")
-                    return jsonify({'error': 'Failed to generate questions'}), 500
+                question = InterviewQuestion(
+                    user_id=1,
+                    question=q['question'],
+                    sample_answer=q.get('sample_answer', 'Not provided'),
+                    category=q.get('category', 'General'),
+                    difficulty=q.get('difficulty', 'Medium'),
+                    job_description=job_description,
+                    success_rate=random.randint(75, 95)  # Sample success rate
+                )
+                db.session.add(question)
+                saved_questions.append(question)
 
-                # Save questions to database
-                saved_questions = []
-                for q in questions:
-                    if 'question' not in q:
-                        continue
+            db.session.commit()
+            logging.info(f"Successfully saved {len(saved_questions)} questions")
 
-                    question = InterviewQuestion(
-                        user_id=1,
-                        question=q['question'],
-                        sample_answer=q.get('sample_answer', 'Not provided'),
-                        category=q.get('category', 'General'),
-                        difficulty=q.get('difficulty', 'Medium'),
-                        job_description=job_description,
-                        success_rate=85
-                    )
-                    db.session.add(question)
-                    saved_questions.append(question)
-
-                db.session.commit()
-                logging.info(f"Successfully saved {len(saved_questions)} questions")
-
-                return jsonify({
-                    'success': True,
-                    'questions': [{
-                        'id': q.id,
-                        'question': q.question,
-                        'category': q.category,
-                        'difficulty': q.difficulty,
-                        'success_rate': q.success_rate
-                    } for q in saved_questions],
-                    'compatibility_ranking': compatibility_data
-                })
-
-            except Exception as parse_error:
-                logging.error(f"Error parsing questions: {str(parse_error)}")
-                logging.error(f"Content being parsed: {content}")
-                return jsonify({'error': 'Failed to parse generated questions'}), 500
+            return jsonify({
+                'success': True,
+                'questions': [{
+                    'id': q.id,
+                    'question': q.question,
+                    'category': q.category,
+                    'difficulty': q.difficulty,
+                    'success_rate': q.success_rate
+                } for q in saved_questions],
+                'compatibility_ranking': compatibility_data
+            })
 
         except Exception as api_error:
             logging.error(f"OpenAI API error: {str(api_error)}")
