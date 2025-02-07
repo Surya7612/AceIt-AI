@@ -629,7 +629,7 @@ def generate_interview_questions():
 
             try:
                 response = client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-4o",  # Changed from gpt-4 to gpt-4o
                     messages=[
                         {"role": "system", "content": system_message},
                         {"role": "user", "content": user_message}
@@ -840,7 +840,7 @@ def export_interview_data():
                 'job_description': q.job_description,
                 'resume_content': q.resume_content,
                 'success_rate': q.success_rate,
-                'created_at': q.created_at.isoformat()
+'created_at': q.created_at.isoformat()
             } for q in questions],
             'practices': [{
                 'id': p.id,
