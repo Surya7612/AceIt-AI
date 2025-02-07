@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
         messageDiv.className = `d-flex ${isUser ? 'justify-content-end' : 'justify-content-start'} mb-3`;
 
         const contentDiv = document.createElement('div');
-        contentDiv.className = `message p-3 rounded ${isUser ? 'bg-primary text-white' : 'bg-light'}`;
+        contentDiv.className = `message p-3 rounded ${isUser ? 'bg-info text-white' : 'bg-dark-subtle'}`;
         contentDiv.style.maxWidth = '75%';
 
         const text = document.createTextNode(message);
@@ -145,8 +145,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <style>
 .message {
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
     word-break: break-word;
+}
+
+.bg-dark-subtle {
+    background-color: var(--bs-dark-bg-subtle);
+    color: var(--bs-emphasis-color);
 }
 </style>
 {% endblock %}
