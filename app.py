@@ -571,25 +571,21 @@ def generate_interview_questions():
             InterviewQuestion.query.filter_by(user_id=1).delete()
             db.session.commit()
 
-            # Simplified prompt with clear structure
-            prompt = """Based on the provided job description, generate 5 interview questions that assess both technical skills and behavioral competencies. Each question should have:
-
-1. A clear, specific question
-2. A sample answer that demonstrates what a strong response would look like
-3. A category (Technical or Behavioral)
-4. A difficulty level (Easy, Medium, or Hard)
-
-IMPORTANT: Return your response in valid JSON format with an array of questions.
+            # Simple prompt that worked in our initial implementation
+            prompt = f"""Based on this job description, generate 5 interview questions. For each question include:
+1. The question itself
+2. A sample answer
+3. Whether it's a Technical or Behavioral question
+4. Difficulty level (Easy/Medium/Hard)
 
 Job Description:
-"""
+{job_description}"""
 
             logging.info("Sending request to OpenAI")
             response = client.chat.completions.create(
                 model="gpt-4-turbo-preview",
                 messages=[
-                    {"role": "system", "content": "You are an expert interviewer. Always respond with valid JSON containing an array of questions. Each question must have 'question', 'sample_answer', 'category', and 'difficulty' fields."},
-                    {"role": "user", "content": prompt + job_description}
+                    {"role": "user", "content": prompt}
                 ],
                 temperature=0.7
             )
@@ -599,8 +595,28 @@ Job Description:
             logging.debug(f"Full response content: {content}")
 
             try:
-                data = json.loads(content)
-                questions = data.get('questions', [])
+                # Parse the response into structured format
+                questions = []
+                sections = content.split('\n\n')
+                current_question = {}
+
+                for section in sections:
+                    if section.startswith(('1.', '2.', '3.', '4.', '5.')):
+                        if current_question:
+                            questions.append(current_question)
+                            current_question = {}
+                        lines = section.split('\n')
+                        current_question['question'] = lines[0].split('. ', 1)[1]
+                        for line in lines[1:]:
+                            if line.startswith('Sample Answer:'):
+                                current_question['sample_answer'] = line.replace('Sample Answer:', '').strip()
+                            elif line.startswith('Category:'):
+                                current_question['category'] = line.replace('Category:', '').strip()
+                            elif line.startswith('Difficulty:'):
+                                current_question['difficulty'] = line.replace('Difficulty:', '').strip()
+
+                if current_question:
+                    questions.append(current_question)
 
                 if not questions:
                     logging.error("No questions generated in the response")
@@ -614,9 +630,9 @@ Job Description:
                     question = InterviewQuestion(
                         user_id=1,
                         question=q['question'],
-                        sample_answer=q['sample_answer'],
-                        category=q['category'],
-                        difficulty=q['difficulty'],
+                        sample_answer=q.get('sample_answer', 'Not provided'),
+                        category=q.get('category', 'General'),
+                        difficulty=q.get('difficulty', 'Medium'),
                         job_description=job_description,
                         success_rate=85  # Default success rate
                     )
@@ -636,14 +652,10 @@ Job Description:
                     } for q in saved_questions]
                 })
 
-            except json.JSONDecodeError as e:
-                logging.error(f"Failed to parse OpenAI response: {str(e)}")
-                logging.error(f"Invalid JSON content: {content}")
-                return jsonify({'error': 'Failed to generate valid interview questions'}), 500
-
             except Exception as e:
-                logging.error(f"Error processing response: {str(e)}", exc_info=True)
-                return jsonify({'error': 'Error processing the generated questions'}), 500
+                logging.error(f"Failed to parse response: {str(e)}")
+                logging.error(f"Response content was: {content}")
+                return jsonify({'error': 'Failed to generate valid interview questions'}), 500
 
         except Exception as e:
             logging.error(f"OpenAI API error: {str(e)}", exc_info=True)
