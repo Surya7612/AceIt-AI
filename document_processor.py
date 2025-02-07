@@ -99,9 +99,42 @@ class DocumentProcessor:
                 messages=[
                     {
                         "role": "system",
-                        "content": """Analyze the provided content and create a structured study document. 
-                        Return a clear, organized learning resource with sections for key concepts, 
-                        detailed explanations, and practice questions."""
+                        "content": """Analyze the provided content and create a structured study document with the following JSON format:
+                        {
+                            "title": "Main topic or subject",
+                            "summary": "Concise overview of the content",
+                            "difficulty_level": "beginner|intermediate|advanced",
+                            "estimated_study_time": "Time in minutes",
+                            "key_concepts": [
+                                {
+                                    "name": "Concept name",
+                                    "description": "Brief explanation"
+                                }
+                            ],
+                            "sections": [
+                                {
+                                    "heading": "Section title",
+                                    "content": "Detailed explanation",
+                                    "key_points": ["Important points"],
+                                    "examples": ["Practical examples or code snippets"]
+                                }
+                            ],
+                            "practice_questions": [
+                                {
+                                    "question": "Study question",
+                                    "answer": "Detailed answer",
+                                    "explanation": "Why this answer is correct",
+                                    "difficulty": "easy|medium|hard"
+                                }
+                            ],
+                            "additional_resources": [
+                                {
+                                    "title": "Resource name",
+                                    "type": "article|video|tutorial",
+                                    "description": "Brief description"
+                                }
+                            ]
+                        }"""
                     },
                     {
                         "role": "user",
@@ -111,7 +144,7 @@ class DocumentProcessor:
                 response_format={"type": "json_object"}
             )
 
-            return response.choices[0].message.content
+            return json.loads(response.choices[0].message.content)
         except Exception as e:
             logger.error(f"Error generating structured content: {str(e)}", exc_info=True)
             raise

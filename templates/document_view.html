@@ -5,51 +5,92 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">{{ document.original_filename }}</h5>
                 <div>
+                    <h5 class="mb-0">{{ document.original_filename }}</h5>
+                    <small class="text-muted">Uploaded {{ document.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
                     <span class="badge {% if document.processed %}bg-success{% else %}bg-warning{% endif %}">
                         {{ 'Processed' if document.processed else 'Processing' }}
                     </span>
+                    <a href="{{ url_for('documents') }}" class="btn btn-sm btn-outline-secondary">
+                        <i data-feather="arrow-left"></i> Back to Documents
+                    </a>
                 </div>
             </div>
             <div class="card-body">
                 {% if content %}
+                    {% set parsed_content = content | tojson | safe | from_json %}
                     <div class="structured-content">
-                        <h2 class="h4">{{ content.title }}</h2>
-                        
+                        <!-- Title and Summary Section -->
                         <div class="mb-4">
-                            <h3 class="h5">Summary</h3>
-                            <p>{{ content.summary }}</p>
+                            <h2 class="h3 mb-3">{{ parsed_content.title }}</h2>
+                            <div class="d-flex gap-3 mb-3">
+                                <span class="badge bg-info">
+                                    <i data-feather="bar-chart-2"></i> {{ parsed_content.difficulty_level | title }}
+                                </span>
+                                <span class="badge bg-secondary">
+                                    <i data-feather="clock"></i> {{ parsed_content.estimated_study_time }} minutes
+                                </span>
+                            </div>
+                            <div class="alert alert-light">
+                                <h6 class="alert-heading mb-2">Summary</h6>
+                                <p class="mb-0">{{ parsed_content.summary }}</p>
+                            </div>
                         </div>
 
+                        <!-- Key Concepts Section -->
                         <div class="mb-4">
-                            <h3 class="h5">Key Concepts</h3>
-                            <ul class="list-group">
-                                {% for concept in content.key_concepts %}
-                                    <li class="list-group-item">{{ concept }}</li>
+                            <h3 class="h5 mb-3">Key Concepts</h3>
+                            <div class="row">
+                                {% for concept in parsed_content.key_concepts %}
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card h-100 border-light">
+                                            <div class="card-body">
+                                                <h6 class="card-title">{{ concept.name }}</h6>
+                                                <p class="card-text small mb-0">{{ concept.description }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 {% endfor %}
-                            </ul>
+                            </div>
                         </div>
 
+                        <!-- Content Sections -->
                         <div class="mb-4">
-                            <h3 class="h5">Content Sections</h3>
+                            <h3 class="h5 mb-3">Detailed Content</h3>
                             <div class="accordion" id="contentSections">
-                                {% for section in content.sections %}
+                                {% for section in parsed_content.sections %}
                                     <div class="accordion-item">
                                         <h2 class="accordion-header">
-                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#section{{ loop.index }}">
+                                            <button class="accordion-button collapsed" type="button" 
+                                                    data-bs-toggle="collapse" 
+                                                    data-bs-target="#section{{ loop.index }}">
                                                 {{ section.heading }}
                                             </button>
                                         </h2>
-                                        <div id="section{{ loop.index }}" class="accordion-collapse collapse">
+                                        <div id="section{{ loop.index }}" class="accordion-collapse collapse" 
+                                             data-bs-parent="#contentSections">
                                             <div class="accordion-body">
                                                 <p>{{ section.content }}</p>
-                                                <h6>Key Points:</h6>
-                                                <ul>
-                                                    {% for point in section.key_points %}
-                                                        <li>{{ point }}</li>
-                                                    {% endfor %}
-                                                </ul>
+
+                                                {% if section.key_points %}
+                                                    <h6 class="mt-3 mb-2">Key Points:</h6>
+                                                    <ul class="mb-3">
+                                                        {% for point in section.key_points %}
+                                                            <li>{{ point }}</li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                {% endif %}
+
+                                                {% if section.examples %}
+                                                    <h6 class="mt-3 mb-2">Examples:</h6>
+                                                    <ul class="mb-0">
+                                                        {% for example in section.examples %}
+                                                            <li>{{ example }}</li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                {% endif %}
                                             </div>
                                         </div>
                                     </div>
@@ -57,25 +98,63 @@
                             </div>
                         </div>
 
+                        <!-- Practice Questions -->
                         <div class="mb-4">
-                            <h3 class="h5">Practice Questions</h3>
+                            <h3 class="h5 mb-3">Practice Questions</h3>
                             <div class="accordion" id="practiceQuestions">
-                                {% for qa in content.practice_questions %}
+                                {% for qa in parsed_content.practice_questions %}
                                     <div class="accordion-item">
                                         <h2 class="accordion-header">
-                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#question{{ loop.index }}">
-                                                {{ qa.question }}
+                                            <button class="accordion-button collapsed" type="button" 
+                                                    data-bs-toggle="collapse" 
+                                                    data-bs-target="#question{{ loop.index }}">
+                                                <div class="d-flex align-items-center gap-2 w-100">
+                                                    <span>{{ qa.question }}</span>
+                                                    <span class="badge bg-{{ 'success' if qa.difficulty == 'easy' 
+                                                                           else 'warning' if qa.difficulty == 'medium' 
+                                                                           else 'danger' }} ms-auto">
+                                                        {{ qa.difficulty }}
+                                                    </span>
+                                                </div>
                                             </button>
                                         </h2>
-                                        <div id="question{{ loop.index }}" class="accordion-collapse collapse">
+                                        <div id="question{{ loop.index }}" class="accordion-collapse collapse" 
+                                             data-bs-parent="#practiceQuestions">
                                             <div class="accordion-body">
-                                                {{ qa.answer }}
+                                                <div class="mb-3">
+                                                    <strong>Answer:</strong>
+                                                    <p class="mb-0">{{ qa.answer }}</p>
+                                                </div>
+                                                {% if qa.explanation %}
+                                                    <div class="alert alert-info mb-0">
+                                                        <strong>Explanation:</strong>
+                                                        <p class="mb-0">{{ qa.explanation }}</p>
+                                                    </div>
+                                                {% endif %}
                                             </div>
                                         </div>
                                     </div>
                                 {% endfor %}
                             </div>
                         </div>
+
+                        <!-- Additional Resources -->
+                        {% if parsed_content.additional_resources %}
+                            <div class="mb-4">
+                                <h3 class="h5 mb-3">Additional Resources</h3>
+                                <div class="list-group">
+                                    {% for resource in parsed_content.additional_resources %}
+                                        <div class="list-group-item">
+                                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                                <h6 class="mb-1">{{ resource.title }}</h6>
+                                                <span class="badge bg-primary">{{ resource.type }}</span>
+                                            </div>
+                                            <p class="mb-0 small text-muted">{{ resource.description }}</p>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
                     </div>
                 {% else %}
                     <div class="alert alert-info">
