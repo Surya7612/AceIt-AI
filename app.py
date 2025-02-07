@@ -3,8 +3,8 @@ import logging
 import json
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, url_for
-from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
+from extensions import db
 from ai_helper import generate_study_plan, chat_response
 from ocr_helper import extract_text_from_image
 from document_processor import DocumentProcessor
@@ -12,7 +12,6 @@ from document_processor import DocumentProcessor
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
 
-db = SQLAlchemy()
 app = Flask(__name__)
 
 # Configuration
@@ -185,7 +184,11 @@ def view_document(doc_id):
 
 @app.route('/chat')
 def chat():
-    return render_template('chat.html')
+    from models import Document, StudyPlan
+    # Get user's documents and study plans for context
+    documents = Document.query.filter_by(user_id=1, processed=True).all()
+    study_plans = StudyPlan.query.filter_by(user_id=1).all()
+    return render_template('chat.html', documents=documents, study_plans=study_plans)
 
 @app.route('/chat', methods=['POST'])
 def process_chat():
@@ -194,7 +197,8 @@ def process_chat():
         return jsonify({'error': 'No message provided'}), 400
 
     try:
-        response = chat_response(data['message'])
+        tutor_mode = data.get('tutor_mode', False)
+        response = chat_response(data['message'], tutor_mode=tutor_mode)
         return jsonify({'response': response})
     except Exception as e:
         logging.error(f"Chat error: {str(e)}")

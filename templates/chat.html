@@ -2,23 +2,151 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-8 mx-auto">
+    <div class="col-md-3">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Chat Settings</h5>
+            </div>
+            <div class="card-body">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="tutorMode">
+                    <label class="form-check-label" for="tutorMode">Tutor Mode</label>
+                </div>
+                <small class="text-muted d-block mt-2">
+                    When enabled, the AI will reference your study materials in responses.
+                </small>
+            </div>
+        </div>
+
+        {% if documents or study_plans %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Available Materials</h5>
+            </div>
+            <div class="card-body">
+                {% if documents %}
+                <h6 class="mb-2">Documents</h6>
+                <ul class="list-unstyled mb-3">
+                    {% for doc in documents %}
+                    <li class="mb-1">
+                        <i data-feather="file-text" class="me-1"></i>
+                        {{ doc.original_filename }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
+                {% if study_plans %}
+                <h6 class="mb-2">Study Plans</h6>
+                <ul class="list-unstyled">
+                    {% for plan in study_plans %}
+                    <li class="mb-1">
+                        <i data-feather="book" class="me-1"></i>
+                        {{ plan.title }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-9">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">AI Study Assistant Chat</h5>
             </div>
             <div class="card-body">
-                <div id="chat-messages" class="mb-3" style="height: 400px; overflow-y: auto;">
+                <div id="chat-messages" class="mb-3" style="height: 500px; overflow-y: auto;">
                     <!-- Messages will be added here dynamically -->
                 </div>
                 <form id="chat-form">
                     <div class="input-group">
-                        <input type="text" id="message-input" class="form-control" placeholder="Ask your question...">
-                        <button class="btn btn-primary" type="submit">Send</button>
+                        <input type="text" id="message-input" class="form-control" 
+                               placeholder="Ask your question...">
+                        <button class="btn btn-primary" type="submit">
+                            <i data-feather="send"></i> Send
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chatForm = document.getElementById('chat-form');
+    const messageInput = document.getElementById('message-input');
+    const chatMessages = document.getElementById('chat-messages');
+    const tutorMode = document.getElementById('tutorMode');
+
+    function appendMessage(message, isUser = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `d-flex ${isUser ? 'justify-content-end' : 'justify-content-start'} mb-3`;
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = `message p-3 rounded ${isUser ? 'bg-primary text-white' : 'bg-light'}`;
+        contentDiv.style.maxWidth = '75%';
+
+        const text = document.createTextNode(message);
+        contentDiv.appendChild(text);
+        messageDiv.appendChild(contentDiv);
+
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    chatForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const message = messageInput.value.trim();
+        if (!message) return;
+
+        // Disable input and button while processing
+        messageInput.disabled = true;
+        chatForm.querySelector('button').disabled = true;
+
+        // Display user message
+        appendMessage(message, true);
+        messageInput.value = '';
+
+        try {
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    tutor_mode: tutorMode.checked
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            // Display AI response
+            appendMessage(data.response);
+        } catch (error) {
+            appendMessage(`Error: ${error.message}`);
+        } finally {
+            // Re-enable input and button
+            messageInput.disabled = false;
+            chatForm.querySelector('button').disabled = false;
+            messageInput.focus();
+        }
+    });
+});
+</script>
+
+<style>
+.message {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    word-break: break-word;
+}
+</style>
 {% endblock %}
