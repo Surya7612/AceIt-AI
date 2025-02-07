@@ -8,8 +8,8 @@ from extensions import db
 from ai_helper import chat_response, generate_study_schedule, update_study_plan
 from ocr_helper import extract_text_from_image
 from document_processor import DocumentProcessor
-import openai # Added import for OpenAI
-from openai import OpenAI # Added this import
+import openai
+from openai import OpenAI
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -68,7 +68,7 @@ def study_plan():
 def create_study_plan():
     if request.method == 'POST':
         try:
-            from models import StudyPlan, Document  # Fixed: Added Document import
+            from models import StudyPlan, Document
             # Get form data
             topic = request.form.get('topic')
             priority = request.form.get('priority')
@@ -78,7 +78,7 @@ def create_study_plan():
             goals = request.form.get('goals')
 
             logging.info(f"Received form data: topic={topic}, priority={priority}, daily_time={daily_time}, "
-                        f"completion_date={completion_date}, difficulty={difficulty}")
+                        f"completion_date={completion_date}, difficulty={difficulty}, goals={goals}")
 
             if not all([topic, priority, daily_time, completion_date, difficulty, goals]):
                 return jsonify({'error': 'Missing required fields'}), 400
@@ -114,7 +114,7 @@ Focus on addressing the specific learning objectives while covering the topic th
 
                     logging.info("Sending request to OpenAI with prompt")
                     ai_content = client.chat.completions.create(
-                        model="gpt-4o",  # Using the latest model
+                        model="gpt-4",  # Fixed model name
                         messages=[
                             {
                                 "role": "system",
@@ -181,6 +181,15 @@ Focus on addressing the specific learning objectives while covering the topic th
                     content = ai_content.choices[0].message.content
                     logging.info(f"Generated AI content: {content[:200]}...")  # Log first 200 chars
 
+                    # Verify JSON structure
+                    try:
+                        parsed_content = json.loads(content)
+                        if not isinstance(parsed_content, dict):
+                            raise ValueError("Generated content is not a valid JSON object")
+                    except json.JSONDecodeError as e:
+                        logging.error(f"Invalid JSON content: {str(e)}")
+                        return jsonify({'error': 'Failed to generate valid study plan content'}), 500
+
                     # Create a document with AI-generated content
                     doc = Document(
                         filename=f"ai_generated_{topic.lower().replace(' ', '_')}.txt",
@@ -194,53 +203,33 @@ Focus on addressing the specific learning objectives while covering the topic th
                     db.session.add(doc)
                     documents.append(doc)
                     logging.info("Successfully created AI document")
+
+                    # Create study plan with verified content
+                    study_plan = StudyPlan(
+                        title=topic,
+                        category='General',
+                        content=content,  # Use the raw AI-generated content
+                        user_id=1,
+                        priority=int(priority),
+                        daily_study_time=int(daily_time),
+                        difficulty_level=difficulty,
+                        completion_target=datetime.strptime(completion_date, '%Y-%m-%d'),
+                        schedule=json.dumps(parsed_content.get('daily_schedule', {})),
+                        progress=0
+                    )
+
+                    # Associate documents with study plan
+                    study_plan.documents.extend(documents)
+
+                    db.session.add(study_plan)
+                    db.session.commit()
+                    logging.info("Successfully created study plan")
+
+                    return jsonify({'success': True, 'plan': parsed_content})
+
                 except Exception as e:
-                    logging.error(f"Error generating AI content: {str(e)}", exc_info=True)
-                    return jsonify({'error': f'Failed to generate AI content: {str(e)}'}), 500
-
-            db.session.flush()  # Get IDs for the documents
-
-            # Generate optimized study schedule
-            try:
-                schedule = generate_study_schedule(
-                    topic=topic,
-                    priority=int(priority),
-                    daily_time=int(daily_time),
-                    completion_date=completion_date,
-                    difficulty=difficulty,
-                    goals=goals
-                )
-                logging.info("Successfully generated study schedule")
-            except Exception as e:
-                logging.error(f"Error generating study schedule: {str(e)}", exc_info=True)
-                return jsonify({'error': f'Failed to generate study schedule: {str(e)}'}), 500
-
-            # Create study plan
-            try:
-                study_plan = StudyPlan(
-                    title=topic,
-                    category='General',  # Will be updated based on documents
-                    content=json.dumps(schedule),
-                    user_id=1,  # Default user
-                    priority=int(priority),
-                    daily_study_time=int(daily_time),
-                    difficulty_level=difficulty,
-                    completion_target=datetime.strptime(completion_date, '%Y-%m-%d'),
-                    schedule=json.dumps(schedule.get('daily_sessions', [])),
-                    progress=0
-                )
-
-                # Associate documents with study plan
-                study_plan.documents.extend(documents)
-
-                db.session.add(study_plan)
-                db.session.commit()
-                logging.info("Successfully created study plan")
-
-                return jsonify({'success': True, 'plan': schedule})
-            except Exception as e:
-                logging.error(f"Error creating study plan: {str(e)}", exc_info=True)
-                return jsonify({'error': f'Failed to create study plan: {str(e)}'}), 500
+                    logging.error(f"Error in AI content generation: {str(e)}", exc_info=True)
+                    return jsonify({'error': f'Failed to generate study plan: {str(e)}'}), 500
 
         except Exception as e:
             logging.error(f"Study plan creation error: {str(e)}", exc_info=True)
