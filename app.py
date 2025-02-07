@@ -121,7 +121,14 @@ def create_study_plan():
                 client = OpenAI()
 
                 try:
-                    # Generate AI study material
+                    # Generate AI study material with enhanced prompt
+                    content_prompt = f"""Create a comprehensive study plan and materials for:
+Topic: {topic}
+Learning Objectives: {goals}
+Difficulty Level: {difficulty}
+
+Focus on addressing the specific learning objectives while covering the topic thoroughly."""
+
                     ai_content = client.chat.completions.create(
                         model="gpt-4o",  # Using the latest model
                         messages=[
@@ -132,11 +139,13 @@ def create_study_plan():
                                     "title": "Study Topic",
                                     "difficulty_level": "beginner|intermediate|advanced",
                                     "estimated_study_time": number,
-                                    "summary": "Brief overview",
+                                    "summary": "Brief overview focusing on learning objectives",
+                                    "learning_objectives": ["objective 1", "objective 2"],
                                     "key_concepts": [
                                         {
                                             "name": "Concept name",
-                                            "description": "Detailed explanation"
+                                            "description": "Detailed explanation",
+                                            "relevance": "How this connects to learning objectives"
                                         }
                                     ],
                                     "sections": [
@@ -144,7 +153,8 @@ def create_study_plan():
                                             "heading": "Section title",
                                             "content": "Detailed content",
                                             "key_points": ["point 1", "point 2"],
-                                            "examples": ["example 1", "example 2"]
+                                            "examples": ["example 1", "example 2"],
+                                            "objectives_covered": ["related objective 1"]
                                         }
                                     ],
                                     "practice_questions": [
@@ -152,14 +162,15 @@ def create_study_plan():
                                             "question": "Question text",
                                             "answer": "Answer text",
                                             "explanation": "Detailed explanation",
-                                            "difficulty": "easy|medium|hard"
+                                            "difficulty": "easy|medium|hard",
+                                            "related_objective": "Which learning objective this tests"
                                         }
                                     ]
                                 }"""
                             },
                             {
                                 "role": "user",
-                                "content": f"Create comprehensive study material for: {topic}\nDifficulty: {difficulty}\nLearning Goals: {goals}"
+                                "content": content_prompt
                             }
                         ],
                         response_format={"type": "json_object"}
@@ -185,12 +196,6 @@ def create_study_plan():
                     return jsonify({'error': f'Failed to generate AI content: {str(e)}'}), 500
 
             db.session.flush()  # Get IDs for the documents
-
-            # Start processing documents in background
-            from celery_worker import process_document_task
-            for doc in documents:
-                if not doc.processed:
-                    process_document_task.delay(doc.id)
 
             # Generate optimized study schedule
             schedule = generate_study_schedule(
