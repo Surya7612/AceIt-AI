@@ -628,14 +628,13 @@ def generate_interview_questions():
             logging.info("Sending request to OpenAI API...")
 
             try:
-                # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-                # do not change this unless explicitly requested by the user
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
                         {"role": "system", "content": system_message},
                         {"role": "user", "content": user_message}
-                    ]
+                    ],
+                    response_format={"type": "json_object"}  # Added to ensure JSON response
                 )
                 logging.info("Successfully received response from OpenAI")
 
@@ -643,8 +642,11 @@ def generate_interview_questions():
                 logging.info(f"Generated AI content: {content[:200]}...")  # Log first 200 chars
 
             except Exception as api_error:
-                logging.error(f"OpenAI API error: {str(api_error)}")
-                return jsonify({'error': f'OpenAI API error: {str(api_error)}'}), 500
+                logging.error(f"OpenAI API error: {str(api_error)}", exc_info=True)  # Added exc_info for full traceback
+                return jsonify({
+                    'error': 'Failed to generate interview questions. Please try again.',
+                    'details': str(api_error)
+                }), 500
 
             # Verify JSON structure
             try:
