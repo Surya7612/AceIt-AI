@@ -429,6 +429,73 @@ Respond ONLY with the JSON object, no additional text."""
         logging.error(f"Error submitting answer: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
+# Add these routes after the submit_answer route and before database initialization
+@app.route('/interview-practice/export', methods=['POST'])
+def export_interview_data():
+    """Export interview practice data"""
+    try:
+        from models import InterviewQuestion, InterviewPractice
+        logging.info("Starting data export process")
+
+        # Get all questions and their practices for the current user
+        questions = InterviewQuestion.query.filter_by(user_id=1).all()
+
+        export_data = []
+        for question in questions:
+            practices = InterviewPractice.query.filter_by(
+                user_id=1,
+                question_id=question.id
+            ).order_by(InterviewPractice.attempt_number).all()
+
+            question_data = {
+                'question': question.question,
+                'category': question.category,
+                'difficulty': question.difficulty,
+                'sample_answer': question.sample_answer,
+                'practices': [{
+                    'attempt_number': p.attempt_number,
+                    'answer_type': p.answer_type,
+                    'user_answer': p.user_answer,
+                    'score': p.score,
+                    'ai_feedback': p.ai_feedback,
+                    'confidence_score': p.confidence_score if p.answer_type in ['audio', 'video'] else None,
+                    'created_at': p.created_at.isoformat()
+                } for p in practices]
+            }
+            export_data.append(question_data)
+
+        return jsonify({
+            'success': True,
+            'data': export_data
+        })
+
+    except Exception as e:
+        logging.error(f"Error exporting data: {str(e)}")
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/interview-practice/clear', methods=['POST'])
+def clear_interview_data():
+    """Clear all interview practice data"""
+    try:
+        from models import InterviewQuestion, InterviewPractice
+        logging.info("Starting data clear process")
+
+        # First delete practices to avoid FK constraint violations
+        InterviewPractice.query.filter_by(user_id=1).delete()
+        db.session.commit()
+
+        # Then delete questions
+        InterviewQuestion.query.filter_by(user_id=1).delete()
+        db.session.commit()
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        logging.error(f"Error clearing data: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e), 'success': False}), 500
+
 # Initialize database
 with app.app_context():
     import models
