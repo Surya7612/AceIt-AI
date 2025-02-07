@@ -12,11 +12,11 @@
                 <form id="study-plan-form" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label for="topic" class="form-label">Topic or Subject</label>
-                        <input type="text" class="form-control" id="topic" required>
+                        <input type="text" class="form-control" id="topic" name="topic" required>
                     </div>
                     <div class="mb-3">
                         <label for="priority" class="form-label">Priority Level</label>
-                        <select class="form-select" id="priority" required>
+                        <select class="form-select" id="priority" name="priority" required>
                             <option value="1">High Priority</option>
                             <option value="2" selected>Medium Priority</option>
                             <option value="3">Low Priority</option>
@@ -24,17 +24,17 @@
                     </div>
                     <div class="mb-3">
                         <label for="daily_time" class="form-label">Daily Study Time (minutes)</label>
-                        <input type="number" class="form-control" id="daily_time" 
+                        <input type="number" class="form-control" id="daily_time" name="daily_time"
                                min="15" max="480" step="15" value="60" required>
                         <small class="text-muted">Recommended: 30-120 minutes per day</small>
                     </div>
                     <div class="mb-3">
                         <label for="completion_date" class="form-label">Target Completion Date</label>
-                        <input type="date" class="form-control" id="completion_date" required>
+                        <input type="date" class="form-control" id="completion_date" name="completion_date" required>
                     </div>
                     <div class="mb-3">
                         <label for="difficulty" class="form-label">Preferred Difficulty Level</label>
-                        <select class="form-select" id="difficulty" required>
+                        <select class="form-select" id="difficulty" name="difficulty" required>
                             <option value="beginner">Beginner</option>
                             <option value="intermediate" selected>Intermediate</option>
                             <option value="advanced">Advanced</option>
@@ -42,11 +42,11 @@
                     </div>
                     <div class="mb-3">
                         <label for="goals" class="form-label">Learning Goals</label>
-                        <textarea class="form-control" id="goals" rows="3" required></textarea>
+                        <textarea class="form-control" id="goals" name="goals" rows="3" required></textarea>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Study Materials</label>
-                        <div class="input-group mb-3">
+                        <label class="form-label">Study Materials (Optional)</label>
+                        <div class="input-group mb-2">
                             <input type="file" class="form-control" id="files" name="files" multiple
                                    accept=".pdf,.png,.jpg,.jpeg">
                         </div>
@@ -101,7 +101,7 @@
                                             </small>
                                             {% if plan.total_study_time %}
                                             <small class="text-muted">
-                                                Total: {{ plan.total_study_time }} minutes
+                                                Total studied: {{ plan.total_study_time }} minutes
                                             </small>
                                             {% endif %}
                                         </div>
@@ -143,25 +143,7 @@ document.addEventListener('DOMContentLoaded', function() {
     studyPlanForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const formData = new FormData();
-        formData.append('topic', document.getElementById('topic').value);
-        formData.append('priority', document.getElementById('priority').value);
-        formData.append('daily_time', document.getElementById('daily_time').value);
-        formData.append('completion_date', document.getElementById('completion_date').value);
-        formData.append('difficulty', document.getElementById('difficulty').value);
-        formData.append('goals', document.getElementById('goals').value);
-
-        // Add files if any
-        const fileInput = document.getElementById('files');
-        for (let file of fileInput.files) {
-            formData.append('files', file);
-        }
-
-        // Add link if provided
-        const link = document.getElementById('link').value.trim();
-        if (link) {
-            formData.append('link', link);
-        }
+        const formData = new FormData(this);
 
         try {
             const response = await fetch('/study-plan/new', {

@@ -8,6 +8,7 @@ from extensions import db
 from ai_helper import chat_response, generate_study_schedule, update_study_plan
 from ocr_helper import extract_text_from_image
 from document_processor import DocumentProcessor
+import openai # Added import for OpenAI
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -113,12 +114,47 @@ def create_study_plan():
                 db.session.add(doc)
                 documents.append(doc)
 
+            # If no materials provided, generate AI content
+            if not documents:
+                logging.info(f"No materials provided, generating AI content for topic: {topic}")
+                # Generate AI study material
+                ai_content = openai.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": """Create comprehensive study material for the given topic.
+                            Include detailed explanations, examples, practice problems, and key concepts.
+                            Structure the content in a clear, organized manner."""
+                        },
+                        {
+                            "role": "user",
+                            "content": f"Create study material for: {topic}\nDifficulty: {difficulty}\nGoals: {goals}"
+                        }
+                    ],
+                    response_format={"type": "json_object"}
+                )
+
+                # Create a document with AI-generated content
+                doc = Document(
+                    filename=f"ai_generated_{topic.lower().replace(' ', '_')}.txt",
+                    original_filename=f"AI Generated Content - {topic}",
+                    file_type='text',
+                    content=ai_content.choices[0].message.content,
+                    processed=True,
+                    category='General',  # Will be updated by AI processing
+                    user_id=1
+                )
+                db.session.add(doc)
+                documents.append(doc)
+
             db.session.flush()  # Get IDs for the documents
 
             # Start processing documents in background
             from celery_worker import process_document_task
             for doc in documents:
-                process_document_task.delay(doc.id)
+                if not doc.processed:
+                    process_document_task.delay(doc.id)
 
             # Generate optimized study schedule
             schedule = generate_study_schedule(
@@ -155,7 +191,8 @@ def create_study_plan():
             logging.error(f"Study plan creation error: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
-    return render_template('study_plan.html')
+    plans = StudyPlan.query.order_by(StudyPlan.created_at.desc()).all()
+    return render_template('study_plan.html', plans=plans)
 
 @app.route('/study-plan/<int:plan_id>/session/start', methods=['POST'])
 def start_study_session(plan_id):

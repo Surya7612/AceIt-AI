@@ -6,10 +6,11 @@ from models import Document, db
 import logging
 
 # Configure Celery
-celery = Celery('tasks', broker='redis://localhost:6379/0')
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+celery = Celery('tasks', broker=REDIS_URL)
 celery.conf.update(
     broker_connection_retry_on_startup=True,
-    result_backend='redis://localhost:6379/0',
+    result_backend=REDIS_URL,
     task_serializer='json',
     accept_content=['json'],
     result_serializer='json',
