@@ -55,6 +55,17 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Success message -->
+                        <div id="successSection" style="display: none;" class="mt-3">
+                            <div class="alert alert-success">
+                                <i data-feather="check-circle"></i>
+                                Questions generated successfully! 
+                                <button class="btn btn-success btn-sm ms-2" onclick="location.href='/interview-practice?clear=true'">
+                                    Refresh Page to View Questions
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -312,8 +323,10 @@ window.generateQuestions = function() {
     // Show loading indicator and disable generate button
     const generateBtn = document.getElementById('generateBtn');
     const loadingSection = document.getElementById('loadingSection');
+    const successSection = document.getElementById('successSection');
     generateBtn.disabled = true;
     loadingSection.style.display = 'block';
+    successSection.style.display = 'none';
 
     // Clear existing questions and hide sections
     document.getElementById('questionsList').innerHTML = '';
@@ -334,6 +347,10 @@ window.generateQuestions = function() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // Show success message
+            loadingSection.style.display = 'none';
+            successSection.style.display = 'block';
+
             // Update compatibility section
             document.getElementById('compatibilitySection').style.display = 'block';
             document.getElementById('compatibilityScore').style.width = `${data.compatibility_ranking.score}%`;
@@ -353,9 +370,6 @@ window.generateQuestions = function() {
 
             // Refresh icons
             feather.replace();
-
-            // Force reload with clear parameter
-            window.location.href = '/interview-practice?clear=true';
         } else {
             alert('Error generating questions: ' + data.error);
         }
