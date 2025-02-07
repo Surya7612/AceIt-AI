@@ -120,38 +120,38 @@ Focus on addressing the specific learning objectives while covering the topic th
                             {
                                 "role": "system",
                                 "content": """You are a study plan generator that creates detailed, structured content.
-                                Always respond with valid JSON following this structure:
-                                {
-                                    "title": "Study Topic",
-                                    "difficulty_level": "beginner|intermediate|advanced",
-                                    "estimated_study_time": "number",
-                                    "summary": "Brief overview focusing on learning objectives",
-                                    "key_concepts": [
-                                        {
-                                            "name": "Concept name",
-                                            "description": "Detailed explanation",
-                                            "priority": "high|medium|low"
-                                        }
-                                    ],
-                                    "sections": [
-                                        {
-                                            "heading": "Section title",
-                                            "content": "Detailed content",
-                                            "key_points": ["point 1", "point 2"],
-                                            "examples": ["example 1", "example 2"],
-                                            "time_allocation": "number",
-                                            "priority": "high|medium|low"
-                                        }
-                                    ],
-                                    "practice_questions": [
-                                        {
-                                            "question": "Question text",
-                                            "answer": "Answer text",
-                                            "explanation": "Detailed explanation",
-                                            "difficulty": "easy|medium|hard"
-                                        }
-                                    ]
-                                }"""
+Always respond with valid JSON following this structure:
+{
+    "title": "Study Topic",
+    "difficulty_level": "beginner|intermediate|advanced",
+    "estimated_study_time": "number",
+    "summary": "Brief overview focusing on learning objectives",
+    "key_concepts": [
+        {
+            "name": "Concept name",
+            "description": "Detailed explanation",
+            "priority": "high|medium|low"
+        }
+    ],
+    "sections": [
+        {
+            "heading": "Section title",
+            "content": "Detailed content",
+            "key_points": ["point 1", "point 2"],
+            "examples": ["example 1", "example 2"],
+            "time_allocation": "number",
+            "priority": "high|medium|low"
+        }
+    ],
+    "practice_questions": [
+        {
+            "question": "Question text",
+            "answer": "Answer text",
+            "explanation": "Detailed explanation",
+            "difficulty": "easy|medium|hard"
+        }
+    ]
+}"""
                             },
                             {
                                 "role": "user",
@@ -561,16 +561,17 @@ def generate_interview_questions():
 
         # Format the system message
         system_message = (
-            "You are an expert technical interviewer and career advisor. Generate interview questions and provide analysis. "
-            "Format your response in JSON with this structure: "
+            "You are an expert technical interviewer and career advisor. "
+            "Generate interview questions and provide analysis. You must respond with valid JSON only. "
+            "Your response must strictly follow this format: "
             "{"
-            '"success_rate": number between 0-100,'
-            '"analysis": "detailed analysis text",'
+            '"success_rate": <number between 0-100>,'
+            '"analysis": "<detailed analysis text>",'
             '"questions": ['
-            '{"question": "question text",'
-            '"sample_answer": "detailed sample answer",'
-            '"category": "Technical|Behavioral|General",'
-            '"difficulty": "Easy|Medium|Hard"}'
+            '{"question": "<question text>",'
+            '"sample_answer": "<detailed sample answer>",'
+            '"category": "<Technical|Behavioral|General>",'
+            '"difficulty": "<Easy|Medium|Hard>"}'
             "]}"
         )
 
@@ -590,8 +591,7 @@ def generate_interview_questions():
             messages=[
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message}
-            ],
-            response_format={"type": "json_object"}
+            ]
         )
 
         content = response.choices[0].message.content
