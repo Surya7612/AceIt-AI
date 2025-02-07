@@ -539,6 +539,10 @@ def view_folder(folder_id):
 def interview_practice():
     """Show interview practice dashboard"""
     from models import InterviewQuestion
+    # Clear existing questions if requested
+    if request.args.get('clear'):
+        InterviewQuestion.query.filter_by(user_id=1).delete()
+        db.session.commit()
     questions = InterviewQuestion.query.filter_by(user_id=1).order_by(InterviewQuestion.created_at.desc()).all()
     return render_template('interview_practice.html', questions=questions)
 
@@ -547,6 +551,10 @@ def generate_interview_questions():
     """Generate interview questions based on job description and optional resume"""
     try:
         from models import InterviewQuestion
+        # Clear existing questions first
+        InterviewQuestion.query.filter_by(user_id=1).delete()
+        db.session.commit()
+
         data = request.get_json()
         job_description = data.get('job_description', '')
         resume = data.get('resume', '')
@@ -663,74 +671,86 @@ def submit_practice_answer(question_id):
         from models import InterviewQuestion, InterviewPractice
         question = InterviewQuestion.query.get_or_404(question_id)
 
-        # Get the answer type and content
-        data = request.form
-        answer_type = data.get('answer_type', 'text')
-        answer_content = data.get('answer')
+        logging.info(f"Processing answer submission for question {question_id}")
+        logging.info(f"Form data: {request.form}")
+        logging.info(f"Files: {request.files}")
+
+        # Get answer type and content
+        answer_type = request.form.get('answer_type', 'text')
+        answer_content = request.form.get('answer')
 
         # Handle file upload for audio/video
         media_file = request.files.get('media_file')
         media_url = None
 
-        logging.info(f"Received answer submission - Type: {answer_type}, Content length: {len(answer_content) if answer_content else 0}")
-        logging.info(f"Media file present: {bool(media_file)}")
-
         # Validate input
-        if answer_type == 'text' and not answer_content:
-            return jsonify({'error': 'Answer text is required'}), 400
-        elif answer_type in ['audio', 'video'] and not media_file:
-            return jsonify({'error': 'Media file is required'}), 400
+        if answer_type == 'text':
+            if not answer_content:
+                return jsonify({'error': 'Answer text is required'}), 400
+        elif answer_type in ['audio', 'video']:
+            if not media_file:
+                return jsonify({'error': 'Media file is required'}), 400
 
-        # Process media file if present
-        if media_file:
+            # Process media file
             filename = secure_filename(f"{answer_type}_{datetime.utcnow().timestamp()}.webm")
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             media_file.save(filepath)
             media_url = filename
             answer_content = f"[{answer_type.upper()} Response]"
 
-        # Generate AI feedback using OpenAI
-        client = OpenAI()
-        prompt = f"""Evaluate this interview answer and provide constructive feedback.
+        # Generate AI feedback
+        try:
+            client = OpenAI()
+            prompt = f"""Evaluate this interview answer and provide constructive feedback.
 
-        Question: {question.question}
-        Sample Answer: {question.sample_answer}
-        User's Answer: {answer_content}
-        Answer Type: {answer_type}
+            Question: {question.question}
+            Sample Answer: {question.sample_answer}
+            User's Answer: {answer_content}
+            Answer Type: {answer_type}
 
-        Provide feedback in this format:
-        - What was good about the answer
-        - What could be improved
-        - Overall score (0-100)
-        """
+            Provide feedback in this format:
+            - What was good about the answer
+            - What could be improved
+            - Overall score (0-100)
+            """
 
-        feedback_response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are an expert interviewer providing constructive feedback."},
-                {"role": "user", "content": prompt}
-            ]
-        )
+            feedback_response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an expert interviewer providing constructive feedback."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
 
-        feedback = feedback_response.choices[0].message.content
+            feedback = feedback_response.choices[0].message.content
+
+        except Exception as e:
+            logging.error(f"Error generating feedback: {str(e)}")
+            return jsonify({'error': 'Failed to generate feedback'}), 500
 
         # Generate confidence score for audio/video submissions
         confidence_score = random.randint(60, 95) if answer_type in ['audio', 'video'] else None
 
         # Save practice attempt
-        practice = InterviewPractice(
-            user_id=1,  # Default user
-            question_id=question_id,
-            user_answer=answer_content,
-            answer_type=answer_type,
-            media_url=media_url,
-            ai_feedback=feedback,
-            score=75,  # Default score
-            confidence_score=confidence_score
-        )
-        db.session.add(practice)
-        db.session.commit()
+        try:
+            practice = InterviewPractice(
+                user_id=1,  # Default user
+                question_id=question_id,
+                user_answer=answer_content,
+                answer_type=answer_type,
+                media_url=media_url,
+                ai_feedback=feedback,
+                score=75,  # Default score
+                confidence_score=confidence_score
+            )
+            db.session.add(practice)
+            db.session.commit()
 
+        except Exception as e:
+            logging.error(f"Error saving practice: {str(e)}")
+            return jsonify({'error': 'Failed to save practice attempt'}), 500
+
+        # Prepare response
         feedback_data = {
             'feedback': feedback,
             'score': practice.score
@@ -798,10 +818,9 @@ def clear_interview_data():
         from models import InterviewQuestion, InterviewPractice
         user_id = 1  # Default user
 
-        # Only delete records for the current user
+        # Delete all practice attempts and questions for the current user
         InterviewPractice.query.join(InterviewQuestion).filter(InterviewQuestion.user_id == user_id).delete()
         InterviewQuestion.query.filter_by(user_id=user_id).delete()
-
         db.session.commit()
 
         return jsonify({'success': True, 'message': 'All interview practice data has been cleared'})
