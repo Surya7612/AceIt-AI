@@ -55,70 +55,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Study plan generation
+    // Study plan form submission
     const studyPlanForm = document.getElementById('study-plan-form');
     if (studyPlanForm) {
         studyPlanForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const topic = document.getElementById('topic').value;
-            const duration = document.getElementById('duration').value;
-            const goals = document.getElementById('goals').value;
-
-            console.log('Study plan form data:', { topic, duration, goals });
-
-            if (!topic || !duration || !goals) {
-                alert('Please fill in all fields');
-                return;
-            }
+            const formData = new FormData(studyPlanForm);
 
             try {
                 console.log('Sending study plan request...');
                 const response = await fetch('/study-plan/new', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ topic, duration, goals })
+                    body: formData
                 });
+
                 const result = await response.json();
                 console.log('Study plan response:', result);
 
                 if (result.success) {
-                    document.getElementById('generated-plan').style.display = 'block';
-                    const plan = JSON.parse(result.plan);
-                    console.log('Parsed plan:', plan);
-
-                    let html = '<div class="study-plan-content">';
-                    html += `<h6 class="mb-3">Total Duration: ${plan.total_duration}</h6>`;
-                    html += '<h6 class="mb-2">Learning Goals:</h6>';
-                    html += '<ul class="mb-3">';
-                    plan.learning_goals.forEach(goal => {
-                        html += `<li>${goal}</li>`;
-                    });
-                    html += '</ul>';
-                    html += '<h6 class="mb-2">Study Sections:</h6>';
-                    plan.sections.forEach(section => {
-                        html += `<div class="card mb-3">
-                            <div class="card-header">
-                                <h6 class="mb-0">${section.title} (${section.duration})</h6>
-                            </div>
-                            <div class="card-body">
-                                <ul class="mb-0">`;
-                        section.tasks.forEach(task => {
-                            html += `<li>${task}</li>`;
-                        });
-                        html += `</ul>
-                            </div>
-                        </div>`;
-                    });
-                    html += '</div>';
-                    document.querySelector('.plan-content').innerHTML = html;
+                    window.location.reload();
                 } else {
-                    alert('Failed to generate study plan: ' + result.error);
+                    alert('Failed to create study plan: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
-                console.error('Plan generation error:', error);
-                alert('Failed to generate study plan. Please try again.');
+                console.error('Error:', error);
+                alert('Failed to create study plan. Please try again.');
             }
         });
     }
