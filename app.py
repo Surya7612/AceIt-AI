@@ -564,20 +564,16 @@ def generate_interview_questions():
             return jsonify({'error': 'Job description is required'}), 400
 
         try:
-            # Initialize OpenAI client with API key
-            api_key = os.environ.get("OPENAI_API_KEY")
-            if not api_key:
+            client = OpenAI()
+            if not os.environ.get("OPENAI_API_KEY"):
                 logging.error("OpenAI API key is not set")
                 return jsonify({'error': 'OpenAI API key is not configured'}), 500
-
-            client = OpenAI()  # OpenAI client will automatically use the environment variable
-            logging.info("OpenAI client initialized")
 
             # Clear existing questions
             InterviewQuestion.query.filter_by(user_id=1).delete()
             db.session.commit()
 
-            # Prepare messages for OpenAI
+            # Enhanced system prompt for better question generation
             messages = [
                 {
                     "role": "system",
@@ -602,7 +598,7 @@ def generate_interview_questions():
                 }
             ]
 
-            # Make API request
+            # Make API request with error handling
             try:
                 logging.info("Sending request to OpenAI")
                 response = client.chat.completions.create(
@@ -614,17 +610,17 @@ def generate_interview_questions():
 
                 content = response.choices[0].message.content
                 logging.info("Received response from OpenAI")
-                logging.debug(f"Raw response: {content[:200]}...")  # Log first 200 chars
+                logging.debug(f"Raw response content: {content[:200]}...")  # Log first 200 chars
 
-                # Parse response
+                # Parse and validate response
                 try:
                     data = json.loads(content)
                     if not isinstance(data, dict) or 'questions' not in data:
-                        raise ValueError("Invalid response format")
+                        raise ValueError("Invalid response format from OpenAI")
 
-                    questions = data['questions']
+                    questions = data.get('questions', [])
                     if not questions:
-                        raise ValueError("No questions generated")
+                        raise ValueError("No questions were generated")
 
                     # Save questions to database
                     saved_questions = []
@@ -643,7 +639,7 @@ def generate_interview_questions():
                         saved_questions.append(question)
 
                     db.session.commit()
-                    logging.info(f"Saved {len(saved_questions)} questions")
+                    logging.info(f"Successfully saved {len(saved_questions)} questions")
 
                     return jsonify({
                         'success': True,
@@ -657,26 +653,28 @@ def generate_interview_questions():
                     })
 
                 except json.JSONDecodeError as e:
-                    logging.error(f"Failed to parse OpenAI response: {str(e)}")
-                    return jsonify({'error': 'Failed to parse response from AI'}), 500
+                    error_msg = f"Failed to parse OpenAI response: {str(e)}"
+                    logging.error(error_msg)
+                    return jsonify({'error': error_msg}), 500
                 except ValueError as e:
-                    logging.error(f"Invalid response format: {str(e)}")
-                    return jsonify({'error': str(e)}), 500
-                except Exception as e:
-                    logging.error(f"Error processing response: {str(e)}")
-                    return jsonify({'error': 'Failed to process AI response'}), 500
+                    error_msg = str(e)
+                    logging.error(f"Invalid response format: {error_msg}")
+                    return jsonify({'error': error_msg}), 500
 
             except Exception as e:
-                logging.error(f"OpenAI API error: {str(e)}")
-                return jsonify({'error': 'Failed to generate questions'}), 500
+                error_msg = f"OpenAI API error: {str(e)}"
+                logging.error(error_msg)
+                return jsonify({'error': error_msg}), 500
 
         except Exception as e:
-            logging.error(f"Error in question generation: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            error_msg = f"Error in question generation: {str(e)}"
+            logging.error(error_msg)
+            return jsonify({'error': error_msg}), 500
 
     except Exception as e:
-        logging.error(f"Unexpected error: {str(e)}")
-        return jsonify({'error': 'An unexpected error occurred'}), 500
+        error_msg = f"Unexpected error: {str(e)}"
+        logging.error(error_msg)
+        return jsonify({'error': error_msg}), 500
 
 @app.route('/interview-practice/<int:question_id>/answer', methods=['POST'])
 def submit_practice_answer(question_id):
