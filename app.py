@@ -68,6 +68,7 @@ def study_plan():
 def create_study_plan():
     if request.method == 'POST':
         try:
+            from models import StudyPlan, Document  # Fixed: Added Document import
             # Get form data
             topic = request.form.get('topic')
             priority = request.form.get('priority')
@@ -119,64 +120,69 @@ def create_study_plan():
                 logging.info(f"No materials provided, generating AI content for topic: {topic}")
                 client = OpenAI()
 
-                # Generate AI study material
-                ai_content = client.chat.completions.create(
-                    model="gpt-4o",  # Using the latest model
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": """Create comprehensive study material in JSON format with the following structure:
+                try:
+                    # Generate AI study material
+                    ai_content = client.chat.completions.create(
+                        model="gpt-4o",  # Using the latest model
+                        messages=[
                             {
-                                "title": "Study Topic",
-                                "difficulty_level": "beginner|intermediate|advanced",
-                                "estimated_study_time": number,
-                                "summary": "Brief overview",
-                                "key_concepts": [
-                                    {
-                                        "name": "Concept name",
-                                        "description": "Detailed explanation"
-                                    }
-                                ],
-                                "sections": [
-                                    {
-                                        "heading": "Section title",
-                                        "content": "Detailed content",
-                                        "key_points": ["point 1", "point 2"],
-                                        "examples": ["example 1", "example 2"]
-                                    }
-                                ],
-                                "practice_questions": [
-                                    {
-                                        "question": "Question text",
-                                        "answer": "Answer text",
-                                        "explanation": "Detailed explanation",
-                                        "difficulty": "easy|medium|hard"
-                                    }
-                                ]
-                            }"""
-                        },
-                        {
-                            "role": "user",
-                            "content": f"Create comprehensive study material for: {topic}\nDifficulty: {difficulty}\nLearning Goals: {goals}"
-                        }
-                    ],
-                    response_format={"type": "json_object"}
-                )
+                                "role": "system",
+                                "content": """Create comprehensive study material in JSON format with the following structure:
+                                {
+                                    "title": "Study Topic",
+                                    "difficulty_level": "beginner|intermediate|advanced",
+                                    "estimated_study_time": number,
+                                    "summary": "Brief overview",
+                                    "key_concepts": [
+                                        {
+                                            "name": "Concept name",
+                                            "description": "Detailed explanation"
+                                        }
+                                    ],
+                                    "sections": [
+                                        {
+                                            "heading": "Section title",
+                                            "content": "Detailed content",
+                                            "key_points": ["point 1", "point 2"],
+                                            "examples": ["example 1", "example 2"]
+                                        }
+                                    ],
+                                    "practice_questions": [
+                                        {
+                                            "question": "Question text",
+                                            "answer": "Answer text",
+                                            "explanation": "Detailed explanation",
+                                            "difficulty": "easy|medium|hard"
+                                        }
+                                    ]
+                                }"""
+                            },
+                            {
+                                "role": "user",
+                                "content": f"Create comprehensive study material for: {topic}\nDifficulty: {difficulty}\nLearning Goals: {goals}"
+                            }
+                        ],
+                        response_format={"type": "json_object"}
+                    )
 
-                content = ai_content.choices[0].message.content
+                    content = ai_content.choices[0].message.content
+                    logging.info(f"Generated AI content: {content[:100]}...")  # Log first 100 chars
 
-                # Create a document with AI-generated content
-                doc = Document(
-                    filename=f"ai_generated_{topic.lower().replace(' ', '_')}.txt",
-                    original_filename=f"AI Generated Content - {topic}",
-                    file_type='text',
-                    content=content,
-                    processed=True,
-                    category='General',  # Will be updated by AI processing
-                    user_id=1
-                )
-                db.session.add(doc)
-                documents.append(doc)
+                    # Create a document with AI-generated content
+                    doc = Document(
+                        filename=f"ai_generated_{topic.lower().replace(' ', '_')}.txt",
+                        original_filename=f"AI Generated Content - {topic}",
+                        file_type='text',
+                        content=content,
+                        processed=True,
+                        category='General',  # Will be updated by AI processing
+                        user_id=1
+                    )
+                    db.session.add(doc)
+                    documents.append(doc)
+                except Exception as e:
+                    logging.error(f"Error generating AI content: {str(e)}")
+                    return jsonify({'error': f'Failed to generate AI content: {str(e)}'}), 500
 
             db.session.flush()  # Get IDs for the documents
 
