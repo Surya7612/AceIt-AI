@@ -55,6 +55,9 @@
             padding: 15px;
             background: var(--bs-primary);
             color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .chat-messages {
@@ -78,11 +81,34 @@
         .message.user {
             background: var(--bs-primary);
             margin-left: auto;
+            color: white;
         }
 
         .message.assistant {
             background: var(--bs-secondary);
             margin-right: auto;
+        }
+
+        .tutor-toggle {
+            display: flex;
+            align-items: center;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+
+        .tutor-toggle input {
+            margin-right: 5px;
+        }
+
+        .chat-typing {
+            font-size: 0.8rem;
+            color: var(--bs-gray-500);
+            margin: 5px 0;
+            display: none;
+        }
+
+        .chat-typing.active {
+            display: block;
         }
     </style>
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
@@ -121,8 +147,13 @@
         <div class="chat-window" id="chatWindow">
             <div class="chat-header">
                 <h6 class="mb-0">AI Study Assistant</h6>
+                <div class="tutor-toggle">
+                    <input type="checkbox" id="tutorMode" class="form-check-input">
+                    <label for="tutorMode" class="form-check-label">Tutor Mode</label>
+                </div>
             </div>
             <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-typing" id="chatTyping">AI is typing...</div>
             <div class="chat-input">
                 <div class="input-group">
                     <input type="text" class="form-control" id="chatInput" placeholder="Ask anything...">
@@ -157,20 +188,32 @@
             addMessage(message, 'user');
             input.value = '';
 
+            // Show typing indicator
+            document.getElementById('chatTyping').classList.add('active');
+
+            // Get tutor mode status
+            const tutorMode = document.getElementById('tutorMode').checked;
+
             // Send to backend
             fetch('/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ message: message })
+                body: JSON.stringify({ 
+                    message: message,
+                    tutor_mode: tutorMode
+                })
             })
             .then(response => response.json())
             .then(data => {
+                // Hide typing indicator
+                document.getElementById('chatTyping').classList.remove('active');
                 addMessage(data.response, 'assistant');
             })
             .catch(error => {
                 console.error('Error:', error);
+                document.getElementById('chatTyping').classList.remove('active');
                 addMessage('Sorry, there was an error processing your request.', 'assistant');
             });
         }
