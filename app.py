@@ -287,6 +287,14 @@ def submit_answer(question_id):
         from models import InterviewPractice, InterviewQuestion
         logging.info("Starting answer submission process")
 
+        # Initialize OpenAI client at the start
+        if not os.environ.get("OPENAI_API_KEY"):
+            logging.error("OpenAI API key is not set")
+            return jsonify({'error': 'OpenAI API key is not configured'}), 500
+
+        client = OpenAI()
+        logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
+
         # Get the question
         question = InterviewQuestion.query.get_or_404(question_id)
 
@@ -327,7 +335,6 @@ def submit_answer(question_id):
 
             # Transcribe audio from media file
             try:
-                client = OpenAI()
                 with open(filepath, "rb") as audio_file:
                     transcript = client.audio.transcriptions.create(
                         model="whisper-1",
