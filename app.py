@@ -125,7 +125,16 @@ def create_study_plan():
                     content_prompt = f"""Create a comprehensive study plan and materials for:
 Topic: {topic}
 Learning Objectives: {goals}
+Priority Level: {priority} (1=High, 2=Medium, 3=Low)
+Daily Study Time: {daily_time} minutes
+Target Completion Date: {completion_date}
 Difficulty Level: {difficulty}
+
+Ensure the study plan:
+1. Fits within the daily time commitment of {daily_time} minutes
+2. Prioritizes content based on the priority level {priority}
+3. Structures content to meet the target completion date
+4. Adapts complexity to match the {difficulty} difficulty level
 
 Focus on addressing the specific learning objectives while covering the topic thoroughly."""
 
@@ -141,11 +150,17 @@ Focus on addressing the specific learning objectives while covering the topic th
                                     "estimated_study_time": number,
                                     "summary": "Brief overview focusing on learning objectives",
                                     "learning_objectives": ["objective 1", "objective 2"],
+                                    "daily_schedule": {
+                                        "minutes_per_day": number,
+                                        "total_days": number,
+                                        "priority_level": number
+                                    },
                                     "key_concepts": [
                                         {
                                             "name": "Concept name",
                                             "description": "Detailed explanation",
-                                            "relevance": "How this connects to learning objectives"
+                                            "relevance": "How this connects to learning objectives",
+                                            "priority": "high|medium|low"
                                         }
                                     ],
                                     "sections": [
@@ -154,7 +169,9 @@ Focus on addressing the specific learning objectives while covering the topic th
                                             "content": "Detailed content",
                                             "key_points": ["point 1", "point 2"],
                                             "examples": ["example 1", "example 2"],
-                                            "objectives_covered": ["related objective 1"]
+                                            "objectives_covered": ["related objective 1"],
+                                            "time_allocation": number,
+                                            "priority": "high|medium|low"
                                         }
                                     ],
                                     "practice_questions": [
@@ -163,9 +180,19 @@ Focus on addressing the specific learning objectives while covering the topic th
                                             "answer": "Answer text",
                                             "explanation": "Detailed explanation",
                                             "difficulty": "easy|medium|hard",
-                                            "related_objective": "Which learning objective this tests"
+                                            "related_objective": "Which learning objective this tests",
+                                            "estimated_time": number
                                         }
-                                    ]
+                                    ],
+                                    "progress_tracking": {
+                                        "milestones": [
+                                            {
+                                                "description": "Milestone description",
+                                                "target_date": "YYYY-MM-DD",
+                                                "objectives_covered": ["objective 1"]
+                                            }
+                                        ]
+                                    }
                                 }"""
                             },
                             {
