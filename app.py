@@ -203,7 +203,7 @@ Focus on addressing the specific learning objectives while covering the topic th
             return jsonify({'error': str(e)}), 500
 
     plans = StudyPlan.query.order_by(StudyPlan.created_at.desc()).all()
-    return render_template('study_plan.html', plans=plans)
+    return render_template('study_plan_new.html', plans=plans)
 
 @app.route('/study-plan/<int:plan_id>/delete', methods=['POST'])
 def delete_study_plan(plan_id):
@@ -352,17 +352,53 @@ def chat():
 
 @app.route('/chat', methods=['POST'])
 def process_chat():
-    data = request.get_json()
-    if not data or 'message' not in data:
-        return jsonify({'error': 'No message provided'}), 400
-
     try:
+        from models import Document, StudyPlan, ChatHistory
+        data = request.get_json()
+        if not data or 'message' not in data:
+            return jsonify({'error': 'No message provided'}), 400
+
+        # Get user's processed documents and study plans for context
+        documents = Document.query.filter_by(user_id=1, processed=True).all()
+        study_plans = StudyPlan.query.filter_by(user_id=1).all()
+
+        # Build context from documents and study plans
+        context = "Consider this context from the user's materials:\n\n"
+
+        # Add document contexts
+        for doc in documents:
+            context += f"From document '{doc.original_filename}':\n{doc.content}\n\n"
+
+        # Add study plan contexts
+        for plan in study_plans:
+            context += f"From study_plan '{plan.title}':\n{plan.content}\n\n"
+
         tutor_mode = data.get('tutor_mode', False)
-        response = chat_response(data['message'], tutor_mode=tutor_mode)
-        return jsonify({'response': response})
+
+        try:
+            response = chat_response(
+                data['message'],
+                context=context,
+                tutor_mode=tutor_mode
+            )
+
+            # Store chat history
+            chat_history = ChatHistory(
+                user_id=1,
+                question=data['message'],
+                answer=response
+            )
+            db.session.add(chat_history)
+            db.session.commit()
+
+            return jsonify({'response': response})
+        except Exception as e:
+            logging.error(f"Chat generation error: {str(e)}")
+            return jsonify({'error': 'Failed to generate response'}), 500
+
     except Exception as e:
         logging.error(f"Chat error: {str(e)}")
-        return jsonify({'error': 'Failed to generate response'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/study-plan/<int:plan_id>')
 def view_study_plan(plan_id):

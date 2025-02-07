@@ -113,7 +113,7 @@ def get_relevant_context(query, user_id=1):
         cache_data(cache_key, context_data, 3600)  # Cache for 1 hour
     return context_data
 
-def chat_response(message, tutor_mode=False, user_id=1):
+def chat_response(message, context=None, tutor_mode=False, user_id=1):
     """Generate chat responses with optional tutor mode using document context"""
     try:
         messages = [
@@ -125,22 +125,21 @@ def chat_response(message, tutor_mode=False, user_id=1):
             }
         ]
 
-        if tutor_mode:
-            context = get_relevant_context(message, user_id)
-            if context:
-                context_prompt = "\n\n".join([
-                    f"From {item['type']} '{item['title']}':\n{item['content']}"
-                    for item in context
-                ])
-                messages.append({
-                    "role": "system",
-                    "content": f"Consider this context from the user's materials:\n\n{context_prompt}"
-                })
+        # Add context if provided
+        if context and (tutor_mode or "document" in message.lower() or "uploaded" in message.lower()):
+            messages.append({
+                "role": "system",
+                "content": context
+            })
 
         messages.append({"role": "user", "content": message})
 
+        # Enhanced logging for debugging
+        logging.debug(f"Sending chat request with tutor_mode={tutor_mode}")
+        logging.debug(f"Context available: {bool(context)}")
+
         response = openai.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o",  # Latest model
             messages=messages
         )
         return response.choices[0].message.content
