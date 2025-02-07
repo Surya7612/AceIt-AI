@@ -566,12 +566,13 @@ def generate_interview_questions():
             return jsonify({'error': 'Job description is required'}), 400
 
         try:
-            # Verify OpenAI API key is set
-            if not os.environ.get("OPENAI_API_KEY"):
+            # Verify OpenAI API key is set and valid
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if not api_key:
                 logging.error("OpenAI API key is not set")
                 return jsonify({'error': 'OpenAI API key is not configured'}), 500
 
-            client = OpenAI()
+            client = OpenAI(api_key=api_key)
             logging.info("OpenAI client initialized")
 
             # Clear existing questions and practices first
@@ -626,25 +627,32 @@ def generate_interview_questions():
             )
 
             logging.info("Sending request to OpenAI API...")
+            logging.debug(f"System message: {system_message}")
+            logging.debug(f"User message: {user_message[:200]}...")  # Log first 200 chars of user message
 
             try:
                 response = client.chat.completions.create(
-                    model="gpt-4",  # Changed back to gpt-4 as it's the correct model name
+                    model="gpt-4",
                     messages=[
                         {"role": "system", "content": system_message},
                         {"role": "user", "content": user_message}
                     ],
-                    response_format={"type": "json_object"}  # Added to ensure JSON response
+                    response_format={"type": "json_object"},
+                    temperature=0.7,
+                    max_tokens=2000
                 )
                 logging.info("Successfully received response from OpenAI")
+
+                if not response.choices or not response.choices[0].message:
+                    raise ValueError("No response choices available from OpenAI")
 
                 content = response.choices[0].message.content
                 logging.info(f"Generated AI content: {content[:200]}...")  # Log first 200 chars
 
             except Exception as api_error:
-                logging.error(f"OpenAI API error: {str(api_error)}", exc_info=True)  # Added exc_info for full traceback
+                logging.error(f"OpenAI API error: {str(api_error)}", exc_info=True)
                 return jsonify({
-                    'error': 'Failed to generate interview questions. Please try again.',
+                    'error': 'Failed to generate interview questions',
                     'details': str(api_error)
                 }), 500
 
@@ -660,10 +668,14 @@ def generate_interview_questions():
                     raise ValueError("No questions in response")
 
                 logging.info(f"Successfully parsed response. Found {len(analysis_data['questions'])} questions.")
+                logging.debug(f"Full response structure: {json.dumps(analysis_data, indent=2)}")
 
-            except (json.JSONDecodeError, ValueError) as e:
+            except json.JSONDecodeError as e:
                 logging.error(f"Error parsing OpenAI response: {str(e)}")
-                return jsonify({'error': 'Failed to generate interview questions. Please try again.'}), 500
+                return jsonify({'error': 'Failed to parse OpenAI response'}), 500
+            except ValueError as e:
+                logging.error(f"Invalid response format: {str(e)}")
+                return jsonify({'error': str(e)}), 500
 
             # Save questions to database
             saved_questions = []
@@ -840,7 +852,7 @@ def export_interview_data():
                 'job_description': q.job_description,
                 'resume_content': q.resume_content,
                 'success_rate': q.success_rate,
-'created_at': q.created_at.isoformat()
+                'created_at': q.created_at.isoformat()
             } for q in questions],
             'practices': [{
                 'id': p.id,
