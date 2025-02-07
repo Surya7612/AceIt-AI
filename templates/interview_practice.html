@@ -316,7 +316,7 @@ let recordedChunks = [];
 let startTime = null;
 let timerInterval = null;
 
-// Fix handleResumeFile to be properly async and handle file uploads correctly
+// Helper function to handle resume file upload
 function handleResumeFile() {
     const fileInput = document.getElementById('resumeFile');
     const resumeTextArea = document.getElementById('resume');

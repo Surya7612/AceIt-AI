@@ -1,0 +1,68 @@
+DESCRIPTION
+Do you want to solve business challenges through innovative technology? Do you enjoy working on cutting-edge, scalable services technology in a team environment? Do you like working on industry-defining projects that move the needle?
+
+At Amazon, we hire the best minds in technology to innovate and build on behalf of our customers. The focus we have on our customers is why we are one of the world’s most beloved brands – customer obsession is part of our company DNA. Our Software Development Engineers (SDEs) use cutting-edge technology to solve complex problems and get to see the impact of their work first-hand.
+
+The challenges SDEs solve for at Amazon are big and influence millions of customers, sellers, and products around the world. We are looking for individuals who are passionate about creating new products, features, and services from scratch while managing ambiguity and the pace of a company where development cycles are measured in weeks, not years.
+
+Key Job Responsibilities
+
+* Collaborate with experienced cross-disciplinary Amazonians to conceive, design, and bring innovative products and services to market.
+
+* Design and build innovative technologies in a large distributed computing environment and help lead fundamental changes in the industry.
+
+* Create solutions to run predictions on distributed systems with exposure to innovative technologies at incredible scale and speed.
+
+* Build distributed storage, index, and query systems that are scalable, fault-tolerant, low cost, and easy to manage/use.
+
+* Design and code the right solutions starting with broadly defined problems.
+
+* Work in an agile environment to deliver high-quality software.
+
+Locations for all SDE roles: The majority of our SDE roles are based in the Greater Seattle/Bellevue, WA, and Arlington, VA area. By applying to this position your application will be considered for all locations we hire for in the United States. This includes, but is not limited to:
+
+• AZ (Phoenix, Tempe)
+• CA (Berkeley, Culver City, Cupertino, East Palo Alto, Irvine, Los Angeles, Manhattan Beach, Palo Alto, San Diego, San Francisco, San Jose, San Luis Obispo, Santa Barbara, Santa Clara, Santa Cruz, Santa Monica, Sunnyvale)
+• CO (Boulder, Denver)
+• GA (Atlanta, Kennesaw)
+• IL (Chicago)
+• MA (Boston, Cambridge, Hudson, North Reading, Westborough)
+• MD (Baltimore)
+• MI (Detroit)
+• MN (Minneapolis)
+• NJ (Jersey City)
+• NY (New York)
+• OR (Portland)
+• PA (Philadelphia, Pittsburgh)
+• TN (Nashville)
+• TX (Austin, Dallas)
+• VA (Arlington, Herndon)
+• WI (Madison)
+• WA (Bellevue, Seattle, Redmond)
+
+***Locations are subject to change. ***
+
+Applications are reviewed on a rolling basis. For an update on your status or to confirm your application was submitted successfully, please login to your candidate portal at Amazon.jobs. Amazon works with a high volume of applicants so we appreciate your patience as we review applications.
+
+We’re on the lookout for the curious, those who think big and want to define the world of tomorrow. At Amazon, you will grow into the high impact, visionary person you know you’re ready to be. Every day will be filled with exciting new challenges, developing new skills, and achieving personal growth.
+
+How often can you say that your work changes the world? At Amazon, you’ll say it often. Join us and define tomorrow.
+
+BASIC QUALIFICATIONS
+- Experience with at least one modern language such as Java, Python, C++, or C# including object-oriented design.
+- Are 18 years of age or older.
+- Currently enrolled in or completed a Bachelor's degree or above in Computer Science, Computer Engineering, Data Science, Electrical Engineering, or majors relating to these fields.
+- Have an expected graduate date between October 2023 - September 2025 and/or graduated within the last 24 months.
+
+PREFERRED QUALIFICATIONS
+- Experience from a technical internship.
+- Are enrolled in a academic program that is physically located in the United States.
+- Experience in optimization mathematics such as linear programming and nonlinear optimization.
+- Experience with distributed, multi-tiered systems, algorithms, and relational databases.
+- Ability to effectively articulate technical challenges and solutions and adept at handling ambiguous or undefined problems as well as ability to think abstractly.
+
+Amazon is committed to a diverse and inclusive workplace. Amazon is an equal opportunity employer and does not discriminate on the basis of race, national origin, gender, gender identity, sexual orientation, protected veteran status, disability, age, or other legally protected status.
+
+Our inclusive culture empowers Amazonians to deliver the best results for our customers. If you have a disability and need a workplace accommodation or adjustment during the application and hiring process, including support for the interview or onboarding process, please visit https://amazon.jobs/content/en/how-we-hire/accommodations for more information. If the country/region you’re applying in isn’t listed, please contact your Recruiting Partner.
+
+Our compensation reflects the cost of labor across several US geographic markets. The base pay for this position ranges from $99,500/year in our lowest geographic market up to $200,000/year in our highest geographic market. Pay is based on a number of factors including market location and may vary depending on job-related knowledge, skills, and experience. Amazon is a total compensation company. Dependent on the position offered, equity, sign-on payments, and other forms of compensation may be provided as part of a total compensation package, in addition to a full range of medical, financial, and/or other benefits. For more information, please visit https://www.aboutamazon.com/workplace/employee-benefits. This position will remain posted until filled. Applicants should apply via our internal or external career site.
