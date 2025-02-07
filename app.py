@@ -553,6 +553,20 @@ def generate_interview_questions():
         from models import InterviewQuestion, InterviewPractice
         user_id = 1  # Default user
 
+        logging.info("Starting question generation process")
+
+        data = request.get_json()
+        job_description = data.get('job_description', '')
+        resume = data.get('resume', '')
+
+        logging.info(f"Received request with job description length: {len(job_description)}")
+        logging.info(f"Resume provided: {'yes' if resume else 'no'}")
+
+        if not job_description:
+            return jsonify({'error': 'Job description is required'}), 400
+
+        client = OpenAI()
+
         # Clear existing questions and practices first
         logging.info("Clearing existing questions and practices")
         try:
@@ -572,18 +586,6 @@ def generate_interview_questions():
             logging.error(f"Error clearing questions: {str(e)}")
             db.session.rollback()
             return jsonify({'error': 'Failed to clear existing questions'}), 500
-
-        data = request.get_json()
-        job_description = data.get('job_description', '')
-        resume = data.get('resume', '')
-
-        logging.info(f"Received request with job description length: {len(job_description)}")
-        logging.info(f"Resume provided: {'yes' if resume else 'no'}")
-
-        if not job_description:
-            return jsonify({'error': 'Job description is required'}), 400
-
-        client = OpenAI()
 
         # Format the system message
         system_message = (
@@ -627,8 +629,9 @@ def generate_interview_questions():
         )
 
         content = response.choices[0].message.content
-        logging.info(f"Received response from OpenAI: {content[:200]}...")
+        logging.info(f"Generated AI content: {content[:200]}...")  # Log first 200 chars
 
+        # Verify JSON structure
         try:
             analysis_data = json.loads(content)
             if not isinstance(analysis_data, dict):
@@ -841,12 +844,13 @@ def clear_interview_data():
         InterviewQuestion.query.filter_by(user_id=user_id).delete()
         db.session.commit()
 
-        return jsonify({'success': True, 'message': 'All interview practice data has been cleared'})
+        return jsonify({'success': True, 'message': 'All interview practice datahas been cleared'})
 
     except Exception as e:
         logging.error(f"Error clearing interview data: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+# Fix app context usage
 with app.app_context():
     # Import models here to avoid circular imports
     import models
