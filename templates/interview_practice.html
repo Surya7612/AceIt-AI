@@ -291,6 +291,13 @@ function generateQuestions() {
         return;
     }
 
+    // Clear the existing questions list
+    document.getElementById('questionsList').innerHTML = '';
+
+    // Hide the practice and feedback areas
+    document.getElementById('practiceArea').style.display = 'none';
+    document.getElementById('feedbackArea').style.display = 'none';
+
     fetch('/interview-practice/generate', {
         method: 'POST',
         headers: {
@@ -324,8 +331,8 @@ function generateQuestions() {
             // Refresh icons
             feather.replace();
 
-            // Reload the page to show new questions
-            location.reload();
+            // Fetch updated questions
+            window.location.href = '/interview-practice?clear=true';
         } else {
             alert('Error generating questions: ' + data.error);
         }
