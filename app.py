@@ -547,93 +547,102 @@ def generate_interview_questions():
     """Generate interview questions based on job description and optional resume"""
     try:
         from models import InterviewQuestion
-        job_description = request.json.get('job_description', '')
-        resume = request.json.get('resume', '')
+        data = request.get_json()
+        job_description = data.get('job_description', '')
+        resume = data.get('resume', '')
+
+        logging.info(f"Received request with job description length: {len(job_description)}")
+        logging.info(f"Resume provided: {'yes' if resume else 'no'}")
 
         if not job_description:
             return jsonify({'error': 'Job description is required'}), 400
 
-        # Generate questions using OpenAI
         client = OpenAI()
 
-        # Process resume if provided
-        resume_section = f"Resume:\n{resume}" if resume else ""
-        resume_mention = ", and resume" if resume else ""
+        # Format the system message
+        system_message = (
+            "You are an expert technical interviewer and career advisor. Generate interview questions and provide analysis. "
+            "Format your response in JSON with this structure: "
+            "{"
+            '"success_rate": number between 0-100,'
+            '"analysis": "detailed analysis text",'
+            '"questions": ['
+            '{"question": "question text",'
+            '"sample_answer": "detailed sample answer",'
+            '"category": "Technical|Behavioral|General",'
+            '"difficulty": "Easy|Medium|Hard"}'
+            "]}"
+        )
 
-        prompt = f"""Given this job description{resume_mention}, generate 5 relevant interview questions with sample answers.
-        Also analyze the candidate's fit for the role and provide a success rate percentage.
+        # Format the user message
+        resume_text = f"\n\nResume:\n{resume}" if resume else ""
+        user_message = (
+            f"Generate 5 relevant interview questions with sample answers based on this job description."
+            f"\n\nJob Description:\n{job_description}"
+            f"{resume_text}"
+            "\n\nAnalyze the candidate's fit for the role and provide a success rate percentage."
+        )
 
-        Job Description:
-        {job_description}
-
-        {resume_section}
-
-        Respond with questions and analysis.
-        """
+        logging.info("Sending request to OpenAI API...")
 
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are an expert technical interviewer and career advisor. Provide detailed feedback and analysis."},
-                {"role": "user", "content": prompt}
-            ]
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ],
+            response_format={"type": "json_object"}
         )
 
-        # Extract and parse the response
         content = response.choices[0].message.content
+        logging.info(f"Received response from OpenAI: {content[:200]}...")
+
         try:
-            # Try to parse as JSON first
             analysis_data = json.loads(content)
-        except json.JSONDecodeError:
-            # If not JSON, create a structured response
-            analysis_data = {
-                "success_rate": 70,  # Default value
-                "analysis": "Based on the provided information",
-                "questions": []
-            }
-            # Parse the content to extract questions
-            questions = content.split('\n\n')
-            for q in questions:
-                if q.strip().startswith(('Q:', 'Question:')):
-                    analysis_data["questions"].append({
-                        "question": q.strip(),
-                        "sample_answer": "Please provide a detailed and relevant answer.",
-                        "category": "Technical",
-                        "difficulty": "Medium"
-                    })
+            if not isinstance(analysis_data, dict):
+                raise ValueError("Response is not a JSON object")
+
+            if "questions" not in analysis_data or not analysis_data["questions"]:
+                raise ValueError("No questions in response")
+
+        except (json.JSONDecodeError, ValueError) as e:
+            logging.error(f"Error parsing OpenAI response: {str(e)}")
+            return jsonify({'error': 'Failed to generate interview questions. Please try again.'}), 500
 
         # Save questions to database
         saved_questions = []
-        for q in analysis_data.get('questions', [])[:5]:  # Limit to 5 questions
+        for q in analysis_data['questions'][:5]:  # Limit to 5 questions
             question = InterviewQuestion(
                 user_id=1,  # Default user
                 job_description=job_description,
                 resume_content=resume,
-                question=q.get('question', ''),
-                sample_answer=q.get('sample_answer', ''),
-                category=q.get('category', 'General'),
-                difficulty=q.get('difficulty', 'Medium'),
-                success_rate=analysis_data.get('success_rate', 70)
+                question=q['question'],
+                sample_answer=q['sample_answer'],
+                category=q['category'],
+                difficulty=q['difficulty'],
+                success_rate=analysis_data['success_rate']
             )
             db.session.add(question)
             saved_questions.append(question)
 
         db.session.commit()
+        logging.info(f"Saved {len(saved_questions)} questions to database")
 
         return jsonify({
             'success': True,
-            'analysis': analysis_data.get('analysis', ''),
-            'success_rate': analysis_data.get('success_rate', 70),
+            'analysis': analysis_data['analysis'],
+            'success_rate': analysis_data['success_rate'],
             'questions': [{
                 'id': q.id,
                 'question': q.question,
                 'category': q.category,
-                'difficulty': q.difficulty
+                'difficulty': q.difficulty,
+                'success_rate': q.success_rate
             } for q in saved_questions]
         })
 
     except Exception as e:
-        logging.error(f"Error generating interview questions: {str(e)}")
+        logging.error(f"Error generating interview questions: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/interview-practice/<int:question_id>/answer', methods=['POST'])
