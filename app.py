@@ -664,22 +664,30 @@ def submit_practice_answer(question_id):
         question = InterviewQuestion.query.get_or_404(question_id)
 
         # Get the answer type and content
-        answer_type = request.form.get('answer_type', 'text')
-        answer_content = request.form.get('answer')
-        media_file = request.files.get('media_file')
+        data = request.form
+        answer_type = data.get('answer_type', 'text')
+        answer_content = data.get('answer')
 
+        # Handle file upload for audio/video
+        media_file = request.files.get('media_file')
+        media_url = None
+
+        logging.info(f"Received answer submission - Type: {answer_type}, Content length: {len(answer_content) if answer_content else 0}")
+        logging.info(f"Media file present: {bool(media_file)}")
+
+        # Validate input
         if answer_type == 'text' and not answer_content:
             return jsonify({'error': 'Answer text is required'}), 400
         elif answer_type in ['audio', 'video'] and not media_file:
             return jsonify({'error': 'Media file is required'}), 400
 
-        # Handle media file upload if present
-        media_url = None
+        # Process media file if present
         if media_file:
             filename = secure_filename(f"{answer_type}_{datetime.utcnow().timestamp()}.webm")
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             media_file.save(filepath)
             media_url = filename
+            answer_content = f"[{answer_type.upper()} Response]"
 
         # Generate AI feedback using OpenAI
         client = OpenAI()
@@ -687,7 +695,7 @@ def submit_practice_answer(question_id):
 
         Question: {question.question}
         Sample Answer: {question.sample_answer}
-        User's Answer: {answer_content if answer_type == 'text' else '[Audio/Video Response]'}
+        User's Answer: {answer_content}
         Answer Type: {answer_type}
 
         Provide feedback in this format:
@@ -706,7 +714,7 @@ def submit_practice_answer(question_id):
 
         feedback = feedback_response.choices[0].message.content
 
-        # Generate random confidence score for audio/video submissions
+        # Generate confidence score for audio/video submissions
         confidence_score = random.randint(60, 95) if answer_type in ['audio', 'video'] else None
 
         # Save practice attempt
@@ -728,7 +736,6 @@ def submit_practice_answer(question_id):
             'score': practice.score
         }
 
-        # Add confidence score for audio/video submissions
         if answer_type in ['audio', 'video']:
             feedback_data['confidence_score'] = confidence_score
 
@@ -738,7 +745,69 @@ def submit_practice_answer(question_id):
         })
 
     except Exception as e:
-        logging.error(f"Error processing practice answer: {str(e)}")
+        logging.error(f"Error processing practice answer: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/interview-practice/export', methods=['POST'])
+def export_interview_data():
+    """Export interview practice data"""
+    try:
+        from models import InterviewQuestion, InterviewPractice
+        user_id = 1  # Default user
+
+        # Get all practice sessions for the user
+        questions = InterviewQuestion.query.filter_by(user_id=user_id).all()
+        practices = InterviewPractice.query.join(InterviewQuestion).filter(InterviewQuestion.user_id == user_id).all()
+
+        export_data = {
+            'questions': [{
+                'id': q.id,
+                'question': q.question,
+                'category': q.category,
+                'difficulty': q.difficulty,
+                'job_description': q.job_description,
+                'resume_content': q.resume_content,
+                'success_rate': q.success_rate,
+                'created_at': q.created_at.isoformat()
+            } for q in questions],
+            'practices': [{
+                'id': p.id,
+                'question_id': p.question_id,
+                'answer_type': p.answer_type,
+                'user_answer': p.user_answer,
+                'ai_feedback': p.ai_feedback,
+                'score': p.score,
+                'confidence_score': p.confidence_score,
+                'created_at': p.created_at.isoformat()
+            } for p in practices]
+        }
+
+        return jsonify({
+            'success': True,
+            'data': export_data
+        })
+
+    except Exception as e:
+        logging.error(f"Error exporting interview data: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/interview-practice/clear', methods=['POST'])
+def clear_interview_data():
+    """Clear all interview practice data"""
+    try:
+        from models import InterviewQuestion, InterviewPractice
+        user_id = 1  # Default user
+
+        # Only delete records for the current user
+        InterviewPractice.query.join(InterviewQuestion).filter(InterviewQuestion.user_id == user_id).delete()
+        InterviewQuestion.query.filter_by(user_id=user_id).delete()
+
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'All interview practice data has been cleared'})
+
+    except Exception as e:
+        logging.error(f"Error clearing interview data: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 with app.app_context():
