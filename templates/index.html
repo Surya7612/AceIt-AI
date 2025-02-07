@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <img src="https://images.unsplash.com/photo-1496128858413-b36217c2ce36" class="card-img-top" alt="Study Desk">
+            <div class="card-body">
+                <h5 class="card-title">Upload Study Material</h5>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Choose PDF or Image</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".pdf,.png,.jpg,.jpeg">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <img src="https://images.unsplash.com/photo-1735712954445-300f46786c67" class="card-img-top" alt="Learning Environment">
+            <div class="card-body">
+                <h5 class="card-title">Recent Study Plans</h5>
+                <div id="recentPlans">
+                    <!-- Dynamic content -->
+                </div>
+                <a href="/study-plan" class="btn btn-secondary mt-3">View All Plans</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Quick Actions</h5>
+                <div class="d-flex gap-3">
+                    <a href="/chat" class="btn btn-outline-primary">
+                        <i data-feather="message-square"></i> Chat Assistant
+                    </a>
+                    <a href="/study-plan/new" class="btn btn-outline-success">
+                        <i data-feather="calendar"></i> Create Study Plan
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

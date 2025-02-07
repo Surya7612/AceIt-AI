@@ -1,0 +1,50 @@
+/* Custom styles on top of Bootstrap dark theme */
+body {
+    background-color: var(--bs-dark);
+    color: var(--bs-light);
+}
+
+.card {
+    background-color: var(--bs-dark);
+    border: 1px solid var(--bs-gray-700);
+}
+
+.card-header {
+    background-color: var(--bs-gray-900);
+    border-bottom: 1px solid var(--bs-gray-700);
+}
+
+.chat-message {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+}
+
+.chat-message.user {
+    background-color: var(--bs-primary);
+    margin-left: 20%;
+}
+
+.chat-message.assistant {
+    background-color: var(--bs-gray-700);
+    margin-right: 20%;
+}
+
+.progress {
+    height: 8px;
+    margin-top: 10px;
+}
+
+/* Custom scrollbar for chat messages */
+#chat-messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+#chat-messages::-webkit-scrollbar-track {
+    background: var(--bs-gray-900);
+}
+
+#chat-messages::-webkit-scrollbar-thumb {
+    background: var(--bs-gray-700);
+    border-radius: 4px;
+}

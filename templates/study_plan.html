@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Study Plan Generator</h5>
+                <button class="btn btn-primary btn-sm" id="generate-plan">Generate New Plan</button>
+            </div>
+            <div class="card-body">
+                <form id="study-plan-form">
+                    <div class="mb-3">
+                        <label for="topic" class="form-label">Topic or Subject</label>
+                        <input type="text" class="form-control" id="topic" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="duration" class="form-label">Study Duration (hours)</label>
+                        <input type="number" class="form-control" id="duration" min="1" max="24" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="goals" class="form-label">Learning Goals</label>
+                        <textarea class="form-control" id="goals" rows="3" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success">Create Plan</button>
+                </form>
+
+                <div id="generated-plan" class="mt-4" style="display: none;">
+                    <h6>Generated Study Plan</h6>
+                    <div class="plan-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
