@@ -567,6 +567,11 @@ def generate_interview_questions():
             "{"
             '"success_rate": <number between 0-100>,'
             '"analysis": "<detailed analysis text>",'
+            '"compatibility_ranking": {'
+            '"score": <number between 0-100>,'
+            '"strengths": ["<strength1>", "<strength2>"],'
+            '"gaps": ["<gap1>", "<gap2>"]'
+            '},'
             '"questions": ['
             '{"question": "<question text>",'
             '"sample_answer": "<detailed sample answer>",'
@@ -581,7 +586,8 @@ def generate_interview_questions():
             f"Generate 5 relevant interview questions with sample answers based on this job description."
             f"\n\nJob Description:\n{job_description}"
             f"{resume_text}"
-            "\n\nAnalyze the candidate's fit for the role and provide a success rate percentage."
+            "\n\nAnalyze the candidate's fit for the role, provide a success rate percentage, "
+            "and include a compatibility ranking with strengths and skill gaps."
         )
 
         logging.info("Sending request to OpenAI API...")
@@ -632,6 +638,11 @@ def generate_interview_questions():
             'success': True,
             'analysis': analysis_data['analysis'],
             'success_rate': analysis_data['success_rate'],
+            'compatibility_ranking': analysis_data.get('compatibility_ranking', {
+                'score': analysis_data['success_rate'],
+                'strengths': [],
+                'gaps': []
+            }),
             'questions': [{
                 'id': q.id,
                 'question': q.question,
@@ -652,79 +663,72 @@ def submit_practice_answer(question_id):
         from models import InterviewQuestion, InterviewPractice
         question = InterviewQuestion.query.get_or_404(question_id)
 
+        # Get the answer type and content
         answer_type = request.form.get('answer_type', 'text')
-        answer = request.form.get('answer', '')
+        answer_content = request.form.get('answer')
         media_file = request.files.get('media_file')
 
-        if answer_type == 'text' and not answer:
-            return jsonify({'error': 'Answer is required'}), 400
+        if answer_type == 'text' and not answer_content:
+            return jsonify({'error': 'Answer text is required'}), 400
         elif answer_type in ['audio', 'video'] and not media_file:
             return jsonify({'error': 'Media file is required'}), 400
 
-        # Handle media file upload
+        # Handle media file upload if present
         media_url = None
         if media_file:
             filename = secure_filename(f"{answer_type}_{datetime.utcnow().timestamp()}.webm")
-            media_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            media_file.save(media_path)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            media_file.save(filepath)
             media_url = filename
 
-            # If it's an audio/video submission, we'll analyze confidence and speaking patterns
-            if answer_type in ['audio', 'video']:
-                # Add analysis of speaking confidence, clarity, and patterns
-                confidence_prompt = f"""Analyze this interview {answer_type} submission for:
-                1. Speaking confidence
-                2. Voice clarity
-                3. Pace and rhythm
-                4. Professional tone
-                Provide a confidence score between 0-100 and specific feedback."""
-
-                # For demonstration, we'll use a random confidence score
-                # In a real implementation, you would use audio/video analysis AI here
-                confidence_score = random.randint(60, 95)
-
         # Generate AI feedback using OpenAI
+        client = OpenAI()
         prompt = f"""Evaluate this interview answer and provide constructive feedback.
 
         Question: {question.question}
         Sample Answer: {question.sample_answer}
-        User's Answer: {answer if answer_type == 'text' else '[Audio/Video Response]'}
+        User's Answer: {answer_content if answer_type == 'text' else '[Audio/Video Response]'}
         Answer Type: {answer_type}
 
-        Provide feedback in JSON format:
-        {{
-            "feedback": "detailed feedback",
-            "score": number between 1-100,
-            "strengths": ["list of strengths"],
-            "improvements": ["areas for improvement"]
-        }}"""
+        Provide feedback in this format:
+        - What was good about the answer
+        - What could be improved
+        - Overall score (0-100)
+        """
 
-        response = openai.chat.completions.create(
+        feedback_response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are an expert interviewer providing constructive feedback."},
                 {"role": "user", "content": prompt}
-            ],
-            response_format={"type": "json_object"}
+            ]
         )
 
-        feedback_data = json.loads(response.choices[0].message.content)
+        feedback = feedback_response.choices[0].message.content
+
+        # Generate random confidence score for audio/video submissions
+        confidence_score = random.randint(60, 95) if answer_type in ['audio', 'video'] else None
 
         # Save practice attempt
         practice = InterviewPractice(
             user_id=1,  # Default user
             question_id=question_id,
-            user_answer=answer,
+            user_answer=answer_content,
             answer_type=answer_type,
             media_url=media_url,
-            ai_feedback=json.dumps(feedback_data),
-            score=feedback_data['score'],
-            confidence_score=confidence_score if answer_type in ['audio', 'video'] else None
+            ai_feedback=feedback,
+            score=75,  # Default score
+            confidence_score=confidence_score
         )
         db.session.add(practice)
         db.session.commit()
 
-        # Add confidence score to feedback if it's an audio/video submission
+        feedback_data = {
+            'feedback': feedback,
+            'score': practice.score
+        }
+
+        # Add confidence score for audio/video submissions
         if answer_type in ['audio', 'video']:
             feedback_data['confidence_score'] = confidence_score
 
