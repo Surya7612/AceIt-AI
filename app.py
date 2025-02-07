@@ -571,7 +571,7 @@ def generate_interview_questions():
             InterviewQuestion.query.filter_by(user_id=1).delete()
             db.session.commit()
 
-            # Simple, focused prompt
+            # Simplified prompt with clear structure
             prompt = """Based on the provided job description, generate 5 interview questions that assess both technical skills and behavioral competencies. Each question should have:
 
 1. A clear, specific question
@@ -579,17 +579,7 @@ def generate_interview_questions():
 3. A category (Technical or Behavioral)
 4. A difficulty level (Easy, Medium, or Hard)
 
-Provide your response in this JSON format:
-{
-    "questions": [
-        {
-            "question": "The interview question text",
-            "sample_answer": "A detailed example of what makes a good answer",
-            "category": "Technical or Behavioral",
-            "difficulty": "Easy, Medium, or Hard"
-        }
-    ]
-}
+IMPORTANT: Return your response in valid JSON format with an array of questions.
 
 Job Description:
 """
@@ -597,10 +587,10 @@ Job Description:
             logging.info("Sending request to OpenAI")
             response = client.chat.completions.create(
                 model="gpt-4-turbo-preview",
-                messages=[{
-                    "role": "user",
-                    "content": prompt + job_description
-                }],
+                messages=[
+                    {"role": "system", "content": "You are an expert interviewer. Always respond with valid JSON containing an array of questions. Each question must have 'question', 'sample_answer', 'category', and 'difficulty' fields."},
+                    {"role": "user", "content": prompt + job_description}
+                ],
                 temperature=0.7
             )
 
@@ -822,7 +812,7 @@ def clear_interview_data():
         InterviewQuestion.query.filter_by(user_id=user_id).delete()
         db.session.commit()
 
-        return jsonify({'success': True, 'message': 'All interview practice datahas been cleared'})
+        return jsonify({'success': True, 'message': 'All interview practice data has been cleared'})
 
     except Exception as e:
         logging.error(f"Error clearing interview data: {str(e)}")
@@ -863,12 +853,12 @@ def test_openai():
                 }), 500
 
         except Exception as api_error:
-            errormsg = f"OpenAI API call failed: {str(api_error)}"
+            error_msg = f"OpenAI API call failed: {str(api_error)}"
             logging.error(error_msg)
             return jsonify({
                 'success': False,
                 'error': error_msg,
-                'api_status': 'api_error'
+                'api_status': 'error'
             }), 500
 
     except Exception as e:
