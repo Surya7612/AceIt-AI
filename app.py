@@ -566,6 +566,11 @@ def generate_interview_questions():
             return jsonify({'error': 'Job description is required'}), 400
 
         try:
+            # Verify OpenAI API key is set
+            if not os.environ.get("OPENAI_API_KEY"):
+                logging.error("OpenAI API key is not set")
+                return jsonify({'error': 'OpenAI API key is not configured'}), 500
+
             client = OpenAI()
             logging.info("OpenAI client initialized")
 
@@ -622,16 +627,24 @@ def generate_interview_questions():
 
             logging.info("Sending request to OpenAI API...")
 
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message}
-                ]
-            )
+            try:
+                # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+                # do not change this unless explicitly requested by the user
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message}
+                    ]
+                )
+                logging.info("Successfully received response from OpenAI")
 
-            content = response.choices[0].message.content
-            logging.info(f"Generated AI content: {content[:200]}...")  # Log first 200 chars
+                content = response.choices[0].message.content
+                logging.info(f"Generated AI content: {content[:200]}...")  # Log first 200 chars
+
+            except Exception as api_error:
+                logging.error(f"OpenAI API error: {str(api_error)}")
+                return jsonify({'error': f'OpenAI API error: {str(api_error)}'}), 500
 
             # Verify JSON structure
             try:
