@@ -97,12 +97,13 @@ def create_study_plan():
 # Initialize document processor
 doc_processor = DocumentProcessor()
 
+# Update document upload endpoint to use background processing
 @app.route('/upload', methods=['POST'])
 def upload_file():
     try:
         from models import Document
+        from celery_worker import process_document_task
 
-        # Debug logging
         logging.debug(f"Files in request: {request.files}")
         logging.debug(f"Form data: {request.form}")
 
@@ -121,12 +122,10 @@ def upload_file():
                 user_id=1  # Temporary default user ID
             )
             db.session.add(doc)
+            db.session.commit()
 
-            # Process link content
-            structured_content = doc_processor.process_document('link', link)
-            if structured_content:
-                doc.structured_content = structured_content
-                doc.processed = True
+            # Start background processing
+            process_document_task.delay(doc.id)
 
             results.append({
                 'type': 'link',
@@ -142,34 +141,27 @@ def upload_file():
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
 
-                # Determine file type and process content
                 file_type = 'image' if filename.lower().endswith(('.png', '.jpg', '.jpeg')) else 'pdf'
-                content = None
-                structured_content = None
-
-                if file_type == 'image':
-                    content = extract_text_from_image(filepath)
-                    if content:
-                        structured_content = doc_processor.process_document('image', filepath)
 
                 doc = Document(
                     filename=filename,
                     original_filename=file.filename,
                     file_type=file_type,
-                    content=content,
-                    structured_content=structured_content,
-                    processed=bool(structured_content),
+                    processed=False,
                     user_id=1  # Temporary default user ID
                 )
                 db.session.add(doc)
+                db.session.commit()
+
+                # Start background processing
+                process_document_task.delay(doc.id)
+
                 results.append({
                     'type': 'file',
                     'filename': filename,
-                    'success': True,
-                    'processed': bool(structured_content)
+                    'success': True
                 })
 
-        db.session.commit()
         return jsonify({'success': True, 'results': results})
 
     except Exception as e:
@@ -218,14 +210,16 @@ def combine_documents():
             return jsonify({'error': 'No documents selected'}), 400
 
         from models import Document, StudyPlan
+        from celery_worker import combine_documents_task
 
         # Get selected documents
         documents = Document.query.filter(Document.id.in_(data['document_ids'])).all()
         if len(documents) < 2:
             return jsonify({'error': 'Please select at least 2 documents'}), 400
 
-        # Combine documents using document processor
-        combined_content = doc_processor.combine_documents(documents)
+        # Start background task for combining documents
+        task = combine_documents_task.delay(data['document_ids'], 1)  # user_id=1
+        combined_content = task.get(timeout=30)  # Wait for result with timeout
 
         # Create a new study plan from combined content
         study_plan = StudyPlan(

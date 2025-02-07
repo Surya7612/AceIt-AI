@@ -1,6 +1,7 @@
 from extensions import db
 from datetime import datetime
 import json
+from sqlalchemy import Index
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -22,6 +23,10 @@ class StudyPlan(db.Model):
     progress = db.Column(db.Integer, default=0)  # Progress percentage
     completion_target = db.Column(db.DateTime)  # Target completion date
 
+    __table_args__ = (
+        Index('idx_study_plan_user_id_created', 'user_id', 'created_at'),
+    )
+
 class Document(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -34,6 +39,11 @@ class Document(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     processed = db.Column(db.Boolean, default=False)
+
+    __table_args__ = (
+        Index('idx_document_user_processed', 'user_id', 'processed'),
+        Index('idx_document_user_created', 'user_id', 'created_at'),
+    )
 
     def get_structured_content(self):
         """Get structured content as a Python dictionary"""
@@ -50,3 +60,7 @@ class ChatHistory(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     related_document_id = db.Column(db.Integer, db.ForeignKey('document.id'))
     related_study_plan_id = db.Column(db.Integer, db.ForeignKey('study_plan.id'))
+
+    __table_args__ = (
+        Index('idx_chat_history_user_created', 'user_id', 'created_at'),
+    )
