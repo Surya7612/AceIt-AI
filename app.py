@@ -9,7 +9,7 @@ from openai import OpenAI
 from extensions import app, db
 from auth import auth as auth_blueprint
 from flask_login import login_required, current_user
-from subscription import subscription as subscription_blueprint # Added import
+from subscription import subscription as subscription_blueprint, premium_required # Added import and premium_required
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -53,8 +53,10 @@ def interview_practice():
     return render_template('interview_practice.html', questions=questions)
 
 @app.route('/interview-practice/generate', methods=['POST'])
+@login_required
+@premium_required
 def generate_interview_questions():
-    """Generate interview questions based on job description"""
+    """Generate interview questions based on job description (Premium Feature)"""
     try:
         from models import InterviewQuestion, InterviewPractice
         logging.info("Starting question generation process")
@@ -292,6 +294,7 @@ def test_openai():
         }), 500
 
 @app.route('/interview-practice/<int:question_id>/answer', methods=['POST'])
+@login_required
 def submit_answer(question_id):
     """Submit an answer for an interview question"""
     try:
@@ -313,9 +316,16 @@ def submit_answer(question_id):
         if not answer_type:
             return jsonify({'error': 'Answer type is required'}), 400
 
+        # Restrict audio/video responses to premium users
+        if answer_type in ['audio', 'video'] and not current_user.is_premium:
+            return jsonify({
+                'error': 'Audio and video responses are premium features. Please upgrade your subscription.',
+                'premium_required': True
+            }), 403
+
         # Get next attempt number
         attempt_number = InterviewPractice.get_next_attempt_number(current_user.id, question_id)
-        
+
 
         # Create practice record
         practice = InterviewPractice(

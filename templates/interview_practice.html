@@ -19,6 +19,23 @@
                     </div>
                     <p class="text-muted">Practice interview questions tailored to your job description and resume with AI feedback</p>
 
+                    <!-- Premium Feature Notice -->
+                    {% if not current_user.is_premium %}
+                    <div class="alert alert-info">
+                        <i data-feather="info"></i>
+                        <strong>Upgrade to Premium</strong> to unlock advanced features:
+                        <ul class="mb-0 mt-2">
+                            <li>Unlimited practice questions</li>
+                            <li>Audio & video responses</li>
+                            <li>Detailed AI feedback</li>
+                            <li>Premium study materials</li>
+                        </ul>
+                        <a href="{{ url_for('subscription.pricing') }}" class="btn btn-primary btn-sm mt-2">
+                            <i data-feather="star"></i> Upgrade Now
+                        </a>
+                    </div>
+                    {% endif %}
+
                     <!-- Job Description and Resume Input -->
                     <div class="mb-4">
                         <label for="jobDescription" class="form-label">Enter Job Description</label>
@@ -69,39 +86,6 @@
         </div>
     </div>
 
-    <!-- Compatibility Ranking Section -->
-    <div class="row mb-4" id="compatibilitySection" style="display: none;">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Job Compatibility Analysis</h5>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Overall Match Score</h6>
-                            <div class="progress mb-3">
-                                <div class="progress-bar" id="compatibilityScore" role="progressbar" style="width: 0%"></div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="row">
-                                <div class="col-12 mb-3">
-                                    <h6 class="text-success">Key Strengths</h6>
-                                    <ul id="strengthsList" class="list-unstyled">
-                                    </ul>
-                                </div>
-                                <div class="col-12">
-                                    <h6 class="text-warning">Areas for Growth</h6>
-                                    <ul id="gapsList" class="list-unstyled">
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Questions List -->
     <div class="row">
         <div class="col-md-4">
@@ -140,12 +124,25 @@
                         <input type="radio" class="btn-check" name="answerType" id="typeText" value="text" checked>
                         <label class="btn btn-outline-primary" for="typeText">Text</label>
 
-                        <input type="radio" class="btn-check" name="answerType" id="typeAudio" value="audio">
-                        <label class="btn btn-outline-primary" for="typeAudio">Audio</label>
+                        <input type="radio" class="btn-check" name="answerType" id="typeAudio" value="audio" {% if not current_user.is_premium %}disabled{% endif %}>
+                        <label class="btn btn-outline-primary" for="typeAudio">
+                            Audio {% if not current_user.is_premium %}<i data-feather="star" class="ms-1"></i>{% endif %}
+                        </label>
 
-                        <input type="radio" class="btn-check" name="answerType" id="typeVideo" value="video">
-                        <label class="btn btn-outline-primary" for="typeVideo">Video</label>
+                        <input type="radio" class="btn-check" name="answerType" id="typeVideo" value="video" {% if not current_user.is_premium %}disabled{% endif %}>
+                        <label class="btn btn-outline-primary" for="typeVideo">
+                            Video {% if not current_user.is_premium %}<i data-feather="star" class="ms-1"></i>{% endif %}
+                        </label>
                     </div>
+
+                    {% if not current_user.is_premium %}
+                    <div class="alert alert-warning premium-feature-notice" style="display: none;">
+                        <i data-feather="lock"></i>
+                        This is a premium feature. 
+                        <a href="{{ url_for('subscription.pricing') }}" class="alert-link">Upgrade your account</a> 
+                        to access audio and video responses.
+                    </div>
+                    {% endif %}
 
                     <!-- Text Answer Area -->
                     <div id="textAnswer">
@@ -206,6 +203,108 @@
 
 {% block scripts %}
 <script>
+// Add premium feature handling to radio button change event
+document.querySelectorAll('input[name="answerType"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        document.getElementById('textAnswer').style.display = 
+            e.target.value === 'text' ? 'block' : 'none';
+        document.getElementById('audioAnswer').style.display = 
+            e.target.value === 'audio' ? 'block' : 'none';
+        document.getElementById('videoAnswer').style.display = 
+            e.target.value === 'video' ? 'block' : 'none';
+
+        // Show premium feature notice if needed
+        {% if not current_user.is_premium %}
+        const premiumNotice = document.querySelector('.premium-feature-notice');
+        if (premiumNotice) {
+            premiumNotice.style.display = 
+                (e.target.value === 'audio' || e.target.value === 'video') ? 'block' : 'none';
+        }
+        {% endif %}
+    });
+});
+
+// Show error modal for premium features
+function handlePremiumFeatureError(error) {
+    if (error.premium_required) {
+        const premiumNotice = document.querySelector('.premium-feature-notice');
+        if (premiumNotice) {
+            premiumNotice.style.display = 'block';
+        }
+        // Reset to text input
+        document.getElementById('typeText').checked = true;
+        document.getElementById('textAnswer').style.display = 'block';
+        document.getElementById('audioAnswer').style.display = 'none';
+        document.getElementById('videoAnswer').style.display = 'none';
+    }
+}
+
+// Update submitAnswer function to handle premium feature errors
+function submitAnswer() {
+    if (!currentQuestionId) return;
+
+    const answerType = document.querySelector('input[name="answerType"]:checked').value;
+    const formData = new FormData();
+    formData.append('answer_type', answerType);
+
+    if (answerType === 'text') {
+        const answer = document.getElementById('answer').value;
+        if (!answer) {
+            alert('Please provide an answer');
+            return;
+        }
+        formData.append('answer', answer);
+    } else {
+        const mediaElement = document.getElementById(`${answerType}Playback`);
+        if (!mediaElement.src) {
+            alert('Please record your answer first');
+            return;
+        }
+
+        const blob = new Blob(recordedChunks, {
+            type: answerType === 'video' ? 'video/webm' : 'audio/webm'
+        });
+        formData.append('media_file', blob, `${answerType}_answer.webm`);
+    }
+
+    // Show loading state
+    const submitBtn = document.querySelector('button[onclick="submitAnswer()"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
+
+    fetch(`/interview-practice/${currentQuestionId}/answer`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showFeedback(data.feedback);
+            // Reset recording elements
+            if (answerType !== 'text') {
+                document.getElementById(`${answerType}Playback`).style.display = 'none';
+                document.getElementById(`${answerType}Timer`).textContent = '';
+            }
+        } else {
+            if (data.premium_required) {
+                handlePremiumFeatureError(data);
+            } else {
+                alert('Error submitting answer: ' + data.error);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to submit answer');
+    })
+    .finally(() => {
+        // Reset button state
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    });
+}
+
 /**
  * Creates and returns an HTML element for a question
  * @param {Object} question - The question object containing id, category, difficulty, etc.
@@ -515,6 +614,15 @@ document.querySelectorAll('input[name="answerType"]').forEach(radio => {
             e.target.value === 'audio' ? 'block' : 'none';
         document.getElementById('videoAnswer').style.display = 
             e.target.value === 'video' ? 'block' : 'none';
+
+        // Show premium feature notice if needed
+        {% if not current_user.is_premium %}
+        const premiumNotice = document.querySelector('.premium-feature-notice');
+        if (premiumNotice) {
+            premiumNotice.style.display = 
+                (e.target.value === 'audio' || e.target.value === 'video') ? 'block' : 'none';
+        }
+        {% endif %}
     });
 });
 
@@ -569,7 +677,11 @@ function submitAnswer() {
                 document.getElementById(`${answerType}Timer`).textContent = '';
             }
         } else {
-            alert('Error submitting answer: ' + data.error);
+            if (data.premium_required) {
+                handlePremiumFeatureError(data);
+            } else {
+                alert('Error submitting answer: ' + data.error);
+            }
         }
     })
     .catch(error => {
