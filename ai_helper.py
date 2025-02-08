@@ -7,7 +7,7 @@ from cache_helper import cache_data, get_cached_data
 from models import Document, StudyPlan
 
 def generate_study_schedule(topic, priority, daily_time, completion_date, difficulty, goals, documents=None, link=None):
-    """Generate an optimized study schedule based on user preferences and optional documents"""
+    """Generate an optimized study plan based on user preferences and optional documents"""
     try:
         # Initialize context from documents if provided
         context = ""
@@ -28,86 +28,112 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
         target_date = datetime.strptime(completion_date, '%Y-%m-%d')
         days_until_target = (target_date - datetime.now()).days
 
-        # Convert priority to intensity level
-        priority_mapping = {
-            1: "high intensity, comprehensive coverage",
-            2: "medium intensity, balanced coverage",
-            3: "low intensity, essential coverage"
+        # Convert priority to intensity level and detailed requirements
+        priority_details = {
+            1: {
+                "intensity": "high intensity, comprehensive coverage",
+                "depth": "in-depth coverage of both fundamental and advanced concepts",
+                "practice": "extensive practice with complex scenarios",
+                "time_allocation": "60% core concepts, 40% advanced topics"
+            },
+            2: {
+                "intensity": "medium intensity, balanced coverage",
+                "depth": "solid understanding of fundamentals with selected advanced topics",
+                "practice": "balanced practice with mixed difficulty levels",
+                "time_allocation": "70% core concepts, 30% advanced topics"
+            },
+            3: {
+                "intensity": "focused intensity, essential coverage",
+                "depth": "strong grasp of fundamental concepts",
+                "practice": "focused practice on essential skills",
+                "time_allocation": "85% core concepts, 15% advanced topics"
+            }
         }
-        intensity = priority_mapping.get(int(priority), "medium intensity")
+
+        priority_info = priority_details.get(int(priority))
+        intensity = priority_info["intensity"]
 
         messages = [
             {
                 "role": "system",
                 "content": f"""You are an expert study plan creator specializing in interview preparation. 
-Create a comprehensive study plan following these exact instructions:
+Create a comprehensive study plan following these exact requirements:
 
-1. Your output MUST be a valid JSON string following this exact structure:
+1. Content depth and coverage:
+   - Intensity: {priority_info["intensity"]}
+   - Depth: {priority_info["depth"]}
+   - Practice focus: {priority_info["practice"]}
+   - Time allocation: {priority_info["time_allocation"]}
+
+2. Your output MUST be a valid JSON string with this exact structure:
 {{
     "title": "{topic}",
-    "summary": "A comprehensive overview tailored to the priority level",
+    "summary": "A detailed overview explaining the approach and key focus areas",
     "difficulty_level": "{difficulty}",
-    "estimated_total_hours": "number",
+    "estimated_total_hours": number,
     "priority_level": "{intensity}",
     "key_concepts": [
         {{
             "name": "string",
-            "description": "string",
-            "priority": "string",
-            "estimated_time": "number"
+            "description": "Detailed concept explanation with examples",
+            "priority": "high/medium/low",
+            "estimated_time": number
         }}
     ],
     "learning_path": [
         {{
-            "day": "number",
+            "day": number,
             "duration_minutes": {daily_time},
-            "topics": ["string"],
+            "topics": ["Specific topics covered"],
             "activities": [
                 {{
-                    "type": "string",
-                    "description": "string",
-                    "duration_minutes": "number",
-                    "priority": "string"
+                    "type": "study/practice/review/assessment",
+                    "description": "Detailed activity description",
+                    "duration_minutes": number,
+                    "priority": "high/medium/low"
                 }}
             ]
         }}
     ],
     "sections": [
         {{
-            "title": "string",
-            "content": "string", 
-            "key_points": ["string"],
-            "examples": ["string"],
-            "priority": "string",
-            "recommended_time": "number"
+            "title": "Section title",
+            "content": "Comprehensive content with clear explanations",
+            "key_points": ["Specific key points"],
+            "examples": ["Detailed examples"],
+            "priority": "high/medium/low",
+            "recommended_time": number
         }}
     ],
     "practice_questions": [
         {{
-            "question": "string",
-            "answer": "string",
-            "explanation": "string",
-            "difficulty": "string",
-            "category": "string",
-            "priority": "string"
+            "question": "Clear, specific question",
+            "answer": "Detailed answer with explanations",
+            "explanation": "Concept explanation and approach",
+            "difficulty": "easy/medium/hard",
+            "category": "Category name",
+            "priority": "high/medium/low"
         }}
     ],
     "additional_resources": [
         {{
-            "title": "string",
-            "type": "string",
-            "description": "string",
-            "url": "string",
-            "priority": "string"
+            "title": "Resource name",
+            "type": "article/video/tutorial/documentation",
+            "description": "What to focus on in this resource",
+            "url": "URL if available",
+            "priority": "high/medium/low"
         }}
     ]
 }}
 
-2. All JSON fields must be present and properly formatted
-3. Ensure all number values are actual numbers not strings
-4. Use consistent string values for priorities: "high", "medium", "low"
-5. Use consistent string values for difficulties: "easy", "medium", "hard"
-6. All arrays must have at least one item"""
+3. Content requirements:
+   - All JSON fields must be present and properly formatted
+   - All number values must be actual numbers, not strings
+   - Use consistent priority values: "high", "medium", "low"
+   - Use consistent difficulty values: "easy", "medium", "hard"
+   - All arrays must have multiple items
+   - Include detailed explanations and examples
+   - Ensure time estimates are realistic and sum up correctly"""
             },
             {
                 "role": "user",
@@ -124,24 +150,25 @@ Requirements:
 1. Plan MUST be completable in {days_until_target} days with {daily_time} minutes daily sessions
 2. Match difficulty level: {difficulty}
 3. Content must be specifically tailored for {topic} interview preparation
-4. Include detailed concepts with examples based on priority level {priority}:
-   - High (1): Comprehensive coverage with advanced concepts
-   - Medium (2): Balanced coverage of essential and advanced topics
-   - Low (3): Focus on core concepts and fundamentals
-5. Daily activities should maximize {daily_time}-minute sessions
-6. Practice questions should match the difficulty and priority level
-7. All time estimates must be realistic within the daily time limit"""
+4. Structure content based on priority level {priority}:
+   - High (1): Comprehensive coverage with advanced topics, complex examples, and extensive practice
+   - Medium (2): Balanced coverage with mix of fundamental and advanced topics
+   - Low (3): Focus on core concepts with clear examples and essential practice
+5. Break down daily activities into focused segments within {daily_time} minutes
+6. Include varied practice questions matching difficulty and priority
+7. Ensure realistic time estimates for each activity"""
             }
         ]
 
         if has_materials:
-            messages[1]["content"] += f"\nUse this additional context to customize the plan:\n{context}"
+            messages[1]["content"] += f"\nIncorporate this additional context:\n{context}"
 
         logging.info("Generating study plan with OpenAI")
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=messages,
-            temperature=0.7
+            temperature=0.7,
+            max_tokens=3000  # Increased token limit for more detailed content
         )
 
         # Parse and validate the response
@@ -149,12 +176,20 @@ Requirements:
             content = response.choices[0].message.content
             schedule = json.loads(content)
 
-            # Basic validation of required fields
-            required_fields = ["title", "summary", "difficulty_level", "key_concepts", 
-                             "learning_path", "sections", "practice_questions"]
+            # Enhanced validation
+            required_fields = ["title", "summary", "difficulty_level", "estimated_total_hours", 
+                             "key_concepts", "learning_path", "sections", "practice_questions"]
 
             if not all(field in schedule for field in required_fields):
                 raise ValueError("Missing required fields in generated schedule")
+
+            # Validate content length and detail level
+            if len(schedule["key_concepts"]) < 3:
+                raise ValueError("Insufficient key concepts")
+            if len(schedule["sections"]) < 3:
+                raise ValueError("Insufficient content sections")
+            if len(schedule["practice_questions"]) < 5:
+                raise ValueError("Insufficient practice questions")
 
             logging.debug(f"Generated study plan: {json.dumps(schedule, indent=2)}")
             return schedule

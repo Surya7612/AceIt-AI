@@ -101,23 +101,47 @@ def start_study_session(plan_id):
     """Start a study session"""
     try:
         from models import StudyPlan, StudySession
+        logging.info(f"Starting study session for plan {plan_id}")
+
         study_plan = StudyPlan.query.get_or_404(plan_id)
 
+        # Verify ownership
         if study_plan.user_id != current_user.id:
+            logging.warning(f"Unauthorized attempt to start session for plan {plan_id}")
             return jsonify({'error': 'Unauthorized'}), 403
 
+        # Check for existing active session
+        active_session = StudySession.query.filter_by(
+            user_id=current_user.id,
+            study_plan_id=plan_id,
+            end_time=None
+        ).first()
+
+        if active_session:
+            logging.warning(f"Active session already exists for plan {plan_id}")
+            return jsonify({'error': 'An active session already exists'}), 400
+
+        # Create new session
         session = StudySession(
             user_id=current_user.id,
             study_plan_id=plan_id,
             start_time=datetime.utcnow()
         )
-        db.session.add(session)
-        db.session.commit()
+
+        try:
+            db.session.add(session)
+            db.session.commit()
+            logging.info(f"Successfully created session {session.id} for plan {plan_id}")
+        except Exception as db_error:
+            logging.error(f"Database error creating session: {str(db_error)}")
+            db.session.rollback()
+            return jsonify({'error': 'Failed to create study session'}), 500
 
         return jsonify({
             'success': True,
             'session_id': session.id
         })
+
     except Exception as e:
         logging.error(f"Error starting study session: {str(e)}")
         return jsonify({'error': str(e)}), 500
