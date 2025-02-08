@@ -24,28 +24,91 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
             context += f"\nProvided resource link: {link}\n"
             has_materials = True
 
-        system_message = """You are a study plan expert. Create a detailed study schedule that includes:
-1. A clear summary of the topic and learning goals
-2. 3-5 key concepts to master
-3. 3-4 detailed study sections with examples
-4. 4-6 practice questions with detailed answers
+        system_message = """You are an expert study plan creator specializing in interview preparation. 
+Create a comprehensive study plan that includes:
+1. A detailed summary of the topic and learning objectives
+2. Key concepts that need to be mastered
+3. A structured learning path divided into sections
+4. Practice questions with detailed explanations
+5. Additional resources and references
 
-Format your response as a structured plan with sections."""
+Format the response as a JSON object with the following structure:
+{
+    "title": "Topic name",
+    "summary": "Comprehensive overview",
+    "difficulty_level": "beginner/intermediate/advanced",
+    "estimated_total_hours": number,
+    "key_concepts": [
+        {
+            "name": "Concept name",
+            "description": "Detailed explanation",
+            "priority": "high/medium/low"
+        }
+    ],
+    "learning_path": [
+        {
+            "day": number,
+            "duration_minutes": number,
+            "topics": ["Topic 1", "Topic 2"],
+            "activities": [
+                {
+                    "type": "study/practice/review",
+                    "description": "Activity description",
+                    "duration_minutes": number
+                }
+            ]
+        }
+    ],
+    "sections": [
+        {
+            "title": "Section name",
+            "content": "Detailed content",
+            "key_points": ["Point 1", "Point 2"],
+            "examples": ["Example 1", "Example 2"]
+        }
+    ],
+    "practice_questions": [
+        {
+            "question": "Question text",
+            "answer": "Detailed answer",
+            "explanation": "Conceptual explanation",
+            "difficulty": "easy/medium/hard",
+            "category": "technical/behavioral/system design"
+        }
+    ],
+    "additional_resources": [
+        {
+            "title": "Resource name",
+            "type": "article/video/tutorial",
+            "description": "Brief description",
+            "url": "Optional URL"
+        }
+    ]
+}"""
 
-        # Create a study request with clear indication of content source
-        base_request = f"""Create a detailed study plan with these parameters:
+        # Calculate study duration in days
+        target_date = datetime.strptime(completion_date, '%Y-%m-%d')
+        days_until_target = (target_date - datetime.now()).days
+
+        study_request = f"""Create a detailed study plan with these parameters:
 Topic: {topic}
 Priority Level: {priority} (1=High, 2=Medium, 3=Low)
 Daily Study Time: {daily_time} minutes
+Days until completion: {days_until_target} days
 Target Completion: {completion_date}
-Difficulty: {difficulty}
-Goals: {goals}
-"""
+Difficulty Level: {difficulty}
+Learning Goals: {goals}
+
+Requirements:
+1. Plan should be completable within {days_until_target} days with {daily_time} minutes per day
+2. Difficulty should match specified level: {difficulty}
+3. Content should be specifically tailored for {topic} interview preparation
+4. Include a mix of theoretical concepts and practical examples
+5. Add practice questions that test different aspects of the topic
+6. Recommend additional resources for deeper learning"""
 
         if has_materials:
-            study_request = base_request + f"\nUse this context to create relevant content:\n{context}"
-        else:
-            study_request = base_request + "\nSince no study materials were provided, generate a comprehensive curriculum covering the fundamental concepts and best practices for this topic."
+            study_request += f"\nUse this additional context to customize the plan:\n{context}"
 
         messages = [
             {"role": "system", "content": system_message},
@@ -54,20 +117,15 @@ Goals: {goals}
 
         logging.info("Generating study plan with OpenAI")
         response = openai_client.chat.completions.create(
-            model="gpt-4",  # Using gpt-4 for more detailed output
+            model="gpt-4",
             messages=messages,
-            temperature=0.7
+            temperature=0.7,
+            response_format={"type": "json_object"}
         )
 
         content = response.choices[0].message.content
-        logging.debug(f"Generated content: {content}")
-
-        # Create a simple structured format
-        schedule = {
-            "title": topic,
-            "goals": goals,
-            "content": content
-        }
+        schedule = json.loads(content)
+        logging.debug(f"Generated content: {json.dumps(schedule, indent=2)}")
 
         return schedule
 
