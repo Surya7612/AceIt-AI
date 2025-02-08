@@ -80,6 +80,30 @@
                                 Questions generated successfully!
                             </div>
                         </div>
+                        <!-- Compatibility Details -->
+                        <div id="compatibilityDetails" style="display: none;" class="mt-4">
+                            <h5>Job Compatibility Analysis</h5>
+                            <div class="mb-3">
+                                <label class="form-label">Overall Match Score</label>
+                                <div class="progress">
+                                    <div id="compatibilityScore" class="progress-bar" role="progressbar" 
+                                         style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Key Strengths</h6>
+                                    <ul id="strengthsList" class="list-group">
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Areas for Development</h6>
+                                    <ul id="gapsList" class="list-group">
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -348,6 +372,9 @@ window.generateQuestions = function() {
     loadingSection.style.display = 'block';
     successSection.style.display = 'none';
 
+    // Hide compatibility details while loading
+    document.getElementById('compatibilityDetails').style.display = 'none';
+
     // Clear existing questions
     document.getElementById('questionsList').innerHTML = '';
     document.getElementById('practiceArea').style.display = 'none';
@@ -355,7 +382,7 @@ window.generateQuestions = function() {
     // Set a timeout to show an extended loading message after 10 seconds
     const loadingTimeout = setTimeout(() => {
         document.querySelector('#loadingSection span').textContent = 
-            'Generating detailed interview questions... This may take a few moments.';
+            'Analyzing job compatibility and generating questions... This may take a few moments.';
     }, 10000);
 
     // Ensure we're not sending empty data
@@ -380,6 +407,11 @@ window.generateQuestions = function() {
             // Show success message and update UI
             loadingSection.style.display = 'none';
             successSection.style.display = 'block';
+
+            // Update compatibility details if available
+            if (data.compatibility) {
+                updateCompatibilityDetails(data.compatibility);
+            }
 
             // Update questions list
             const questionsList = document.getElementById('questionsList');
@@ -807,25 +839,38 @@ function clearData() {
     });
 }
 
-
 /**
  * Updates the compatibility details section with strengths and gaps
- * @param {Object} compatibilityRanking - The compatibility ranking object
+ * @param {Object} compatibilityData - The compatibility data object
  */
-function updateCompatibilityDetails(compatibilityRanking) {
+function updateCompatibilityDetails(compatibilityData) {
+    const compatibilitySection = document.getElementById('compatibilityDetails');
+    const scoreBar = document.getElementById('compatibilityScore');
     const strengthsList = document.getElementById('strengthsList');
     const gapsList = document.getElementById('gapsList');
 
-    strengthsList.innerHTML = compatibilityRanking.strengths
-        .map(strength => `<li><i data-feather="check-circle" class="text-success me-2"></i>${strength}</li>`)
+    // Update score
+    const score = compatibilityData.compatibility_score;
+    scoreBar.style.width = `${score}%`;
+    scoreBar.setAttribute('aria-valuenow', score);
+    scoreBar.textContent = `${score}%`;
+
+    // Update strengths
+    strengthsList.innerHTML = compatibilityData.strengths
+        .map(strength => `<li class="list-group-item">
+            <i class="feather-check text-success me-2"></i>${strength}
+        </li>`)
         .join('');
 
-    gapsList.innerHTML = compatibilityRanking.gaps
-        .map(gap => `<li><i data-feather="alert-circle" class="text-warning me-2"></i>${gap}</li>`)
+    // Update gaps
+    gapsList.innerHTML = compatibilityData.gaps
+        .map(gap => `<li class="list-group-item">
+            <i class="feather-arrow-up-circle text-warning me-2"></i>${gap}
+        </li>`)
         .join('');
 
-    // Refresh Feather icons
-    feather.replace();
+    // Show the section
+    compatibilitySection.style.display = 'block';
 }
 
 // Initialize page on load
