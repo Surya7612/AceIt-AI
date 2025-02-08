@@ -2,7 +2,8 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-12">
+    <!-- Study Plan Content Column -->
+    <div class="col-lg-8">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <div>
@@ -25,10 +26,6 @@
                             Time: <span id="timerDisplay">00:00:00</span>
                         </div>
                     </div>
-                    <!-- Add Chat Button -->
-                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studyPlanChatModal">
-                        <i data-feather="message-circle"></i> Study Assistant
-                    </button>
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="folderDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i data-feather="folder-plus"></i> Add to Folder
@@ -196,24 +193,23 @@
             </div>
         </div>
     </div>
-</div>
 
-<!-- Chat Modal -->
-<div class="modal fade" id="studyPlanChatModal" tabindex="-1" aria-labelledby="studyPlanChatModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content bg-dark">
-            <div class="modal-header border-bottom border-secondary">
-                <h5 class="modal-title" id="studyPlanChatModalLabel">Study Plan Assistant</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+    <!-- Study Assistant Column -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i data-feather="message-circle"></i> Study Assistant
+                </h5>
             </div>
-            <div class="modal-body">
-                <div id="chatMessages" class="chat-messages mb-3">
+            <div class="card-body d-flex flex-column">
+                <div id="chatMessages" class="chat-messages flex-grow-1 mb-3">
                     <!-- Chat messages will be inserted here -->
                 </div>
                 <div id="errorMessage" class="alert alert-danger d-none mb-3">
                     <!-- Error messages will be shown here -->
                 </div>
-                <form id="chatForm" class="chat-form">
+                <form id="chatForm" class="chat-form mt-auto">
                     <div class="input-group">
                         <input type="text" id="messageInput" class="form-control bg-dark text-light" placeholder="Ask about your study plan...">
                         <button type="submit" class="btn btn-primary" id="sendButton">
@@ -252,7 +248,7 @@
     flex-direction: column;
     gap: 1rem;
     padding: 1rem;
-    height: 400px;
+    height: calc(80vh - 200px);
     overflow-y: auto;
 }
 
@@ -282,29 +278,17 @@
 .message-content {
     white-space: pre-wrap;
 }
+
+/* Make the study assistant column stick to viewport */
+@media (min-width: 992px) {
+    .col-lg-4 .card {
+        position: sticky;
+        top: 1rem;
+    }
+}
 </style>
 
 <script>
-let currentSessionId = null;
-let startTime = null;
-let timerInterval = null;
-
-function updateTimer() {
-    if (!startTime) return;
-
-    const now = new Date();
-    const diff = new Date(now - startTime);
-    const hours = diff.getUTCHours().toString().padStart(2, '0');
-    const minutes = diff.getUTCMinutes().toString().padStart(2, '0');
-    const seconds = diff.getUTCSeconds().toString().padStart(2, '0');
-
-    const timerDisplay = document.getElementById('timerDisplay');
-    if (timerDisplay) {
-        timerDisplay.textContent = `${hours}:${minutes}:${seconds}`;
-    }
-}
-
-// Event Listeners
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Initializing study plan view...');
 
@@ -600,6 +584,25 @@ async function addToFolder(folderId, itemType, itemId) {
     } catch (error) {
         console.error('Error:', error);
         alert('Failed to add to folder');
+    }
+}
+
+let currentSessionId = null;
+let startTime = null;
+let timerInterval = null;
+
+function updateTimer() {
+    if (!startTime) return;
+
+    const now = new Date();
+    const diff = new Date(now - startTime);
+    const hours = diff.getUTCHours().toString().padStart(2, '0');
+    const minutes = diff.getUTCMinutes().toString().padStart(2, '0');
+    const seconds = diff.getUTCSeconds().toString().padStart(2, '0');
+
+    const timerDisplay = document.getElementById('timerDisplay');
+    if (timerDisplay) {
+        timerDisplay.textContent = `${hours}:${minutes}:${seconds}`;
     }
 }
 </script>
