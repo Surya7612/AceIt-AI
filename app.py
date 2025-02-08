@@ -38,7 +38,7 @@ def view_study_plan(plan_id):
             flash('You do not have permission to view this study plan.', 'error')
             return redirect(url_for('study_plan'))
 
-        return render_template('study_plan_view.html', plan=study_plan)
+        return render_template('study_plan_view.html', study_plan=study_plan)
     except Exception as e:
         logging.error(f"Error viewing study plan: {str(e)}")
         flash('Error loading study plan.', 'error')
