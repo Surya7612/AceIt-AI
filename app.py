@@ -25,29 +25,57 @@ def index():
     """Render the home page"""
     return render_template('index.html')
 
+@app.route('/study-plan/<int:plan_id>')
+@login_required
+def view_study_plan(plan_id):
+    """View a specific study plan"""
+    try:
+        from models import StudyPlan
+        study_plan = StudyPlan.query.get_or_404(plan_id)
+
+        # Check if the plan belongs to the current user
+        if study_plan.user_id != current_user.id:
+            flash('You do not have permission to view this study plan.', 'error')
+            return redirect(url_for('study_plan'))
+
+        return render_template('study_plan_view.html', plan=study_plan)
+    except Exception as e:
+        logging.error(f"Error viewing study plan: {str(e)}")
+        flash('Error loading study plan.', 'error')
+        return redirect(url_for('study_plan'))
+
 @app.route('/study-plan')
 @login_required
 def study_plan():
     """Render the study plans page with limit check for free users"""
-    from models import StudyPlan
+    try:
+        from models import StudyPlan
 
-    # Get all study plans for the user
-    study_plans = StudyPlan.query.filter_by(user_id=current_user.id).all()
+        # Get all study plans for the user
+        study_plans = StudyPlan.query.filter_by(user_id=current_user.id).order_by(StudyPlan.created_at.desc()).all()
 
-    # Only check limits for non-premium users
-    if not current_user.is_premium:
-        # Check if user has reached the daily limit
-        today = datetime.utcnow().date()
-        study_plan_count = StudyPlan.query.filter(
-            StudyPlan.user_id == current_user.id,
-            db.func.date(StudyPlan.created_at) == today
-        ).count()
+        logging.info(f"Found {len(study_plans)} study plans for user {current_user.id}")
 
-        if study_plan_count >= 5:
-            flash('Free users are limited to 5 study plans per day. Upgrade to premium for unlimited access.', 'warning')
-            return redirect(url_for('subscription.pricing'))
+        # Only check limits for non-premium users
+        if not current_user.is_premium:
+            # Check if user has reached the daily limit
+            today = datetime.utcnow().date()
+            study_plan_count = StudyPlan.query.filter(
+                StudyPlan.user_id == current_user.id,
+                db.func.date(StudyPlan.created_at) == today
+            ).count()
 
-    return render_template('study_plan.html', study_plans=study_plans)
+            if study_plan_count >= 5:
+                flash('Free users are limited to 5 study plans per day. Upgrade to premium for unlimited access.', 'warning')
+                return redirect(url_for('subscription.pricing'))
+
+        return render_template('study_plan.html', plans=study_plans)
+
+    except Exception as e:
+        logging.error(f"Error loading study plans: {str(e)}")
+        flash('Error loading study plans.', 'error')
+        return render_template('study_plan.html', plans=[])
+
 
 @app.route('/documents')
 @login_required
@@ -511,6 +539,7 @@ def create_study_plan():
     """Create a new study plan"""
     try:
         from models import StudyPlan
+        from ai_helper import generate_study_schedule
         logging.info("Starting study plan creation process")
 
         # Get form data
@@ -525,16 +554,22 @@ def create_study_plan():
                 return jsonify({'error': f'Missing required field: {field}', 'success': False}), 400
 
         try:
-            # Create study plan
+            # Generate AI study schedule
+            schedule = generate_study_schedule(
+                topic=data['topic'],
+                priority=int(data['priority']),
+                daily_time=int(data['daily_time']),
+                completion_date=data['completion_date'],
+                difficulty=data['difficulty'],
+                goals=data['goals']
+            )
+
+            # Create study plan with generated schedule
             study_plan = StudyPlan(
                 user_id=current_user.id,
                 title=data['topic'],
-                category='General',  # Default category
-                content=json.dumps({
-                    'goals': data['goals'],
-                    'initial_content': 'Pending generation',
-                    'status': 'pending'
-                }),
+                category=schedule.get('category', 'General'),
+                content=json.dumps(schedule),
                 priority=int(data['priority']),
                 daily_study_time=int(data['daily_time']),
                 completion_target=datetime.strptime(data['completion_date'], '%Y-%m-%d'),
@@ -558,8 +593,6 @@ def create_study_plan():
     except Exception as e:
         logging.error(f"Error creating study plan: {str(e)}")
         return jsonify({'error': str(e), 'success': False}), 500
-
-# Add this route after other existing routes
 
 @app.route('/chat', methods=['POST'])
 @login_required
