@@ -95,114 +95,102 @@ def generate_interview_questions():
             return jsonify({'error': 'OpenAI API key is not configured'}), 500
 
         client = OpenAI()
-        logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
 
         # Generate interview questions with optimized prompt
         num_questions = 3 if not current_user.is_premium else 5
-        questions_prompt = f"""Generate exactly {num_questions} focused interview questions based on this job description. Use this EXACT format with no deviations:
+        questions_prompt = f"""Generate {num_questions} interview questions based on this job description:
 
-1. Question: [question text]
-Sample Answer: [answer text]
+Job Description: {job_description[:500]}
+
+For each question, use this EXACT format with no variations:
+
+Question: [The interview question]
+Sample Answer: [A good answer to the question]
 Category: [Technical/Behavioral]
 Difficulty: [Easy/Medium/Hard]
 
-2. Question: [question text]
-Sample Answer: [answer text]
-Category: [Technical/Behavioral]
-Difficulty: [Easy/Medium/Hard]
+Generate exactly {num_questions} questions, no more, no less."""
 
-Job Description: {job_description[:500]}"""
+        logging.info(f"Sending prompt to OpenAI: {questions_prompt}")
 
-        start_time = datetime.utcnow()
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a concise interviewer. You MUST use the exact format provided."},
+                {"role": "system", "content": "You are an expert interviewer generating questions."},
                 {"role": "user", "content": questions_prompt}
             ],
-            temperature=0.5,
-            max_tokens=1000
+            temperature=0.7,
+            max_tokens=2000,  # Increased token limit
+            presence_penalty=0.0,
+            frequency_penalty=0.0
         )
-        end_time = datetime.utcnow()
 
-        logging.info(f"OpenAI API response time: {(end_time - start_time).total_seconds()} seconds")
         content = response.choices[0].message.content
-        logging.debug(f"Full OpenAI response: {content}")  # Log full response for debugging
+        logging.info(f"Received response from OpenAI: {content}")
 
-        # Parse response into questions
+        # Parse questions
         questions = []
         current_question = {}
-        key_mapping = {
-            'Question:': 'question',
-            'Sample Answer:': 'sample_answer',
-            'Category:': 'category',
-            'Difficulty:': 'difficulty'
-        }
 
-        lines = content.split('\n')
-        for line in lines:
+        for line in content.split('\n'):
             line = line.strip()
             if not line:
                 continue
 
-            # When a new question starts, save the previous one
-            if line.startswith(('1.', '2.', '3.', '4.', '5.')):
+            if line.startswith('Question:'):
+                if current_question:  # Save previous question if exists
+                    questions.append(current_question)
+                current_question = {'question': line[9:].strip()}
+            elif line.startswith('Sample Answer:'):
+                current_question['sample_answer'] = line[14:].strip()
+            elif line.startswith('Category:'):
+                current_question['category'] = line[9:].strip()
+            elif line.startswith('Difficulty:'):
+                current_question['difficulty'] = line[11:].strip()
+                # After difficulty, the question is complete
                 if current_question:
                     questions.append(current_question)
-                current_question = {}
-                continue
-
-            # Match and extract fields
-            for prefix, key in key_mapping.items():
-                if line.startswith(prefix):
-                    value = line[len(prefix):].strip()
-                    current_question[key] = value
-                    break
-
-        # Don't forget to add the last question
-        if current_question and len(current_question) >= len(key_mapping):
-            questions.append(current_question)
+                    current_question = {}
 
         if not questions:
-            logging.error("No questions were parsed. Full content: " + content)
+            logging.error(f"Failed to parse questions from response: {content}")
             return jsonify({'error': 'Failed to generate questions'}), 500
 
-        # Save questions to database with consistent key names
+        # Save questions to database
         saved_questions = []
         try:
             for q in questions:
-                if not all(key in q for key in key_mapping.values()):
-                    continue
-
-                question = InterviewQuestion(
-                    user_id=current_user.id,
-                    question=q['question'],
-                    sample_answer=q['sample_answer'],
-                    category=q['category'],
-                    difficulty=q['difficulty'],
-                    job_description=job_description[:500],
-                    success_rate=random.randint(75, 95)
-                )
-                db.session.add(question)
-                saved_questions.append(question)
+                if all(k in q for k in ['question', 'sample_answer', 'category', 'difficulty']):
+                    question = InterviewQuestion(
+                        user_id=current_user.id,
+                        question=q['question'],
+                        sample_answer=q['sample_answer'],
+                        category=q['category'],
+                        difficulty=q['difficulty'],
+                        job_description=job_description[:500],
+                        success_rate=random.randint(75, 95)
+                    )
+                    db.session.add(question)
+                    saved_questions.append(question)
 
             db.session.commit()
             logging.info(f"Successfully saved {len(saved_questions)} questions")
+
+            return jsonify({
+                'success': True,
+                'questions': [{
+                    'id': q.id,
+                    'question': q.question,
+                    'category': q.category,
+                    'difficulty': q.difficulty,
+                    'success_rate': q.success_rate
+                } for q in saved_questions]
+            })
+
         except Exception as db_error:
             logging.error(f"Database error: {str(db_error)}")
             db.session.rollback()
             return jsonify({'error': 'Failed to save questions to database'}), 500
-
-        return jsonify({
-            'success': True,
-            'questions': [{
-                'id': q.id,
-                'question': q.question,
-                'category': q.category,
-                'difficulty': q.difficulty,
-                'success_rate': q.success_rate
-            } for q in saved_questions]
-        })
 
     except Exception as e:
         logging.error(f"General error in question generation: {str(e)}")
