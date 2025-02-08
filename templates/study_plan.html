@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = new FormData(this);
 
         try {
-            const response = await fetch('/study-plan/new', {
+            const response = await fetch('/study-plan', {
                 method: 'POST',
                 body: formData
             });

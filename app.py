@@ -557,7 +557,8 @@ def create_study_plan():
                 category='General',  # Default category
                 content=json.dumps({
                     'goals': data['goals'],
-                    'initial_content': 'Pending generation'
+                    'initial_content': 'Pending generation',
+                    'status': 'pending'
                 }),
                 priority=int(data['priority']),
                 daily_study_time=int(data['daily_time']),

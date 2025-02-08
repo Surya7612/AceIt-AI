@@ -60,46 +60,40 @@ class StudyPlan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
-    category = db.Column(db.String(50), nullable=False)  # DSA, System Design, Behavioral
-    content = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(50), nullable=False, default='General')  # DSA, System Design, Behavioral, General
+    content = db.Column(db.Text)  # JSON field for storing structured content
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     progress = db.Column(db.Integer, default=0)  # Progress percentage
     completion_target = db.Column(db.DateTime)  # Target completion date
     priority = db.Column(db.Integer, default=2)  # 1=High, 2=Medium, 3=Low
     daily_study_time = db.Column(db.Integer)  # Minutes per day
-    schedule = db.Column(db.Text)  # JSON field for storing study schedule
     difficulty_level = db.Column(db.String(20))  # beginner, intermediate, advanced
-    last_studied = db.Column(db.DateTime)  # Track last study session
+    last_studied = db.Column(db.DateTime)
     total_study_time = db.Column(db.Integer, default=0)  # Total minutes spent studying
 
-    # Relationships with cascade delete
+    # Relationships
     documents = db.relationship('Document', secondary='study_plan_documents', 
                            backref=db.backref('study_plans', lazy=True))
     study_sessions = db.relationship('StudySession', backref='study_plan', lazy=True,
-                                   cascade='all, delete-orphan')  # Add cascade delete
+                                   cascade='all, delete-orphan')
 
-    __table_args__ = (
-        Index('idx_study_plan_user_id_created', 'user_id', 'created_at'),
-    )
-
-    def get_schedule(self):
-        """Get parsed schedule data"""
+    def get_content(self):
+        """Get parsed content data"""
         try:
-            return json.loads(self.schedule) if self.schedule else None
+            return json.loads(self.content) if self.content else None
         except:
             return None
 
-    def update_schedule(self, schedule_data):
-        """Update study schedule"""
-        self.schedule = json.dumps(schedule_data)
+    def update_content(self, content_data):
+        """Update study plan content"""
+        self.content = json.dumps(content_data)
         self.updated_at = datetime.utcnow()
 
     def update_study_time(self, minutes):
         """Update total study time"""
-        self.total_study_time += minutes
+        self.total_study_time = (self.total_study_time or 0) + minutes
         self.last_studied = datetime.utcnow()
-        # Update progress based on total time vs target time
         if self.daily_study_time:
             target_total = self.daily_study_time * (self.completion_target - self.created_at).days
             self.progress = min(100, int((self.total_study_time / target_total) * 100))
