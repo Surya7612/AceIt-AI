@@ -94,34 +94,6 @@ def generate_interview_questions():
                     'premium_required': True
                 }), 403
 
-        # Generate compatibility analysis
-        compatibility_prompt = f"""Analyze the compatibility between this job description and resume. Respond in this exact JSON format:
-        {{
-            "compatibility_score": (number between 0-100),
-            "strengths": [
-                (list of 3-5 key matching strengths)
-            ],
-            "gaps": [
-                (list of 2-3 areas for improvement)
-            ]
-        }}
-
-        Job Description: {job_description[:500]}
-        Resume: {resume[:500] if resume else '[No resume provided]'}
-        """
-
-        client = OpenAI()
-        compatibility_response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are an expert job match analyzer."},
-                {"role": "user", "content": compatibility_prompt}
-            ],
-            response_format={"type": "json_object"}
-        )
-
-        compatibility_data = json.loads(compatibility_response.choices[0].message.content)
-
         # First get existing practices to avoid FK constraint violation
         existing_practices = InterviewPractice.query.join(InterviewQuestion).filter(
             InterviewQuestion.user_id == current_user.id
@@ -139,6 +111,8 @@ def generate_interview_questions():
         if not os.environ.get("OPENAI_API_KEY"):
             logging.error("OpenAI API key is not set")
             return jsonify({'error': 'OpenAI API key is not configured'}), 500
+
+        client = OpenAI()
 
         # Generate interview questions with optimized prompt
         num_questions = 5  # Changed from 3 to 5 for free users
@@ -164,7 +138,7 @@ Generate exactly {num_questions} questions, no more, no less."""
                 {"role": "user", "content": questions_prompt}
             ],
             temperature=0.7,
-            max_tokens=2000,  # Increased token limit
+            max_tokens=2000,
             presence_penalty=0.0,
             frequency_penalty=0.0
         )
@@ -228,8 +202,7 @@ Generate exactly {num_questions} questions, no more, no less."""
                     'category': q.category,
                     'difficulty': q.difficulty,
                     'success_rate': q.success_rate
-                } for q in saved_questions],
-                'compatibility': compatibility_data
+                } for q in saved_questions]
             })
 
         except Exception as db_error:

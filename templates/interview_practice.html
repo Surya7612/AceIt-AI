@@ -41,15 +41,9 @@
                         <label for="jobDescription" class="form-label">Enter Job Description</label>
                         <textarea class="form-control mb-2" id="jobDescription" rows="4" placeholder="Paste the job description here..."></textarea>
 
+                        <!-- Simplified Resume Input -->
                         <div class="mb-3">
-                            <label class="form-label">Resume</label>
-                            <div class="input-group mb-2">
-                                <input type="file" class="form-control" id="resumeFile" accept=".pdf,.doc,.docx,.txt">
-                                <button class="btn btn-outline-secondary" type="button" id="uploadButton">
-                                    <i data-feather="upload"></i> Upload
-                                </button>
-                            </div>
-                            <div class="text-muted small mb-2">Or paste resume content below:</div>
+                            <label class="form-label">Resume (Optional)</label>
                             <textarea class="form-control" id="resume" rows="4" placeholder="Paste your resume content here..."></textarea>
                         </div>
 
@@ -111,32 +105,32 @@
     </div>
 
     <!-- Questions List -->
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Questions</h5>
-                </div>
-                <div class="list-group list-group-flush" id="questionsList">
-                    {% for question in questions %}
-                    <button class="list-group-item list-group-item-action" onclick="showQuestion({{ question.id }})">
-                        <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-1">{{ question.category }}</h6>
-                            <small class="text-muted">{{ question.difficulty }}</small>
-                        </div>
-                        <p class="mb-1">{{ question.question }}</p>
-                        {% if question.success_rate %}
-                        <div class="progress mt-2" style="height: 5px;">
-                            <div class="progress-bar" role="progressbar" style="width: {{ question.success_rate }}%"></div>
-                        </div>
-                        <small class="text-muted">Match Rate: {{ "%.1f"|format(question.success_rate) }}%</small>
-                        {% endif %}
-                    </button>
-                    {% endfor %}
-                </div>
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="list-group" id="questionsList">
+                {% for question in questions %}
+                <button class="list-group-item list-group-item-action" onclick="showQuestion({{ question.id }})">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">{{ question.category }}</h6>
+                        <small class="text-muted">{{ question.difficulty }}</small>
+                    </div>
+                    <p class="mb-1">{{ question.question }}</p>
+                    {% if question.success_rate %}
+                    <div class="progress mt-2" style="height: 5px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ question.success_rate }}%"></div>
+                    </div>
+                    <small class="text-muted">Match Rate: {{ "%.1f"|format(question.success_rate) }}%</small>
+                    {% endif %}
+                </button>
+                {% endfor %}
             </div>
         </div>
+    </div>
 
+
+    <div class="row">
+        <div class="col-md-4">
+            </div>
         <div class="col-md-8">
             <div class="card" id="practiceArea" style="display: none;">
                 <div class="card-header">
@@ -330,6 +324,7 @@ function submitAnswer() {
 }
 
 
+
 /**
  * Creates and returns an HTML element for a question
  * @param {Object} question - The question object containing id, category, difficulty, etc.
@@ -377,7 +372,6 @@ window.generateQuestions = function() {
 
     // Clear existing questions
     document.getElementById('questionsList').innerHTML = '';
-    document.getElementById('practiceArea').style.display = 'none';
 
     // Set a timeout to show an extended loading message after 10 seconds
     const loadingTimeout = setTimeout(() => {
@@ -388,7 +382,7 @@ window.generateQuestions = function() {
     // Ensure we're not sending empty data
     const requestData = {
         job_description: jobDescription,
-        resume: resume || '[No resume provided]'
+        resume: resume || ''
     };
 
     fetch('/interview-practice/generate', {
@@ -453,58 +447,6 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let startTime = null;
 let timerInterval = null;
-
-/**
- * Handles file upload for resume
- * Processes text files directly and shows placeholder for other formats
- */
-function handleResumeFile() {
-    const fileInput = document.getElementById('resumeFile');
-    const resumeTextArea = document.getElementById('resume');
-    const file = fileInput.files[0];
-    const uploadButton = document.getElementById('uploadButton');
-
-    if (!file) {
-        alert('Please select a file first');
-        return;
-    }
-
-    if (file.type === 'text/plain') {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            resumeTextArea.value = e.target.result;
-            // Show success feedback
-            uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
-            uploadButton.classList.add('btn-success');
-            uploadButton.classList.remove('btn-outline-secondary');
-            feather.replace();
-
-            // Reset button after 2 seconds
-            setTimeout(() => {
-                uploadButton.innerHTML = '<i data-feather="upload"></i> Upload';
-                uploadButton.classList.remove('btn-success');
-                uploadButton.classList.add('btn-outline-secondary');
-                feather.replace();
-            }, 2000);
-        };
-        reader.readAsText(file);
-    } else {
-        resumeTextArea.value = `[Content from: ${file.name}]`;
-        // Show success feedback even for non-text files
-        uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
-        uploadButton.classList.add('btn-success');
-        uploadButton.classList.remove('btn-outline-secondary');
-        feather.replace();
-
-        // Reset button after 2 seconds
-        setTimeout(() => {
-            uploadButton.innerHTML = '<i data-feather="upload"></i> Upload';
-            uploadButton.classList.remove('btn-success');
-            uploadButton.classList.add('btn-outline-secondary');
-            feather.replace();
-        }, 2000);
-    }
-}
 
 /**
  * Updates the recording timer display
@@ -883,18 +825,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize Feather icons
     feather.replace();
-
-    // Attach both file input and button click handlers
-    const fileInput = document.getElementById('resumeFile');
-    const uploadButton = document.getElementById('uploadButton');
-
-    if (fileInput) {
-        fileInput.addEventListener('change', handleResumeFile);
-    }
-
-    if (uploadButton) {
-        uploadButton.addEventListener('click', handleResumeFile);
-    }
 });
 </script>
 {% endblock %}
