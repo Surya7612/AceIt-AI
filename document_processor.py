@@ -1,7 +1,3 @@
-` tag at the beginning and maintaining the original code's functionality.  The structure and content of the edited snippet aligns perfectly with the original,  simply removing the initial invalid tag.  Therefore, we can directly use the edited code without modification.
-
-
-<replit_final_file>
 import os
 import logging
 from typing import Optional, Dict, Any
@@ -61,7 +57,7 @@ class DocumentProcessor:
                                     "heading": "Section title",
                                     "content": "Detailed explanation",
                                     "key_points": ["Important points"],
-                                    "examples": ["Practical examples or code snippets"]
+                                    "examples": ["Examples or code snippets"]
                                 }
                             ],
                             "practice_questions": [
@@ -88,8 +84,7 @@ class DocumentProcessor:
                         """
                     },
                     {"role": "user", "content": raw_text}
-                ],
-                response_format={"type": "json_object"}
+                ]
             )
 
             structured_content = json.loads(response.choices[0].message.content)
@@ -171,7 +166,7 @@ class DocumentProcessor:
                     {
                         "role": "system",
                         "content": """Create a unified study document that combines and organizes the provided content from multiple sources.
-                        Ensure the output follows this JSON format:
+                        Format your response as a valid JSON object with this structure:
                         {
                             "title": "Combined topic or subject",
                             "summary": "Overview synthesizing all sources",
@@ -214,8 +209,7 @@ class DocumentProcessor:
                         "role": "user",
                         "content": combined_text
                     }
-                ],
-                response_format={"type": "json_object"}
+                ]
             )
 
             return json.loads(response.choices[0].message.content)
