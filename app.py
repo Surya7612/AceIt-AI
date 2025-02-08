@@ -559,6 +559,61 @@ def create_study_plan():
         logging.error(f"Error creating study plan: {str(e)}")
         return jsonify({'error': str(e), 'success': False}), 500
 
+# Add this route after other existing routes
+
+@app.route('/chat', methods=['POST'])
+@login_required
+def chat():
+    """Handle chat messages and return AI responses"""
+    try:
+        from models import ChatHistory
+        data = request.get_json()
+        if not data or 'message' not in data:
+            return jsonify({'error': 'No message provided'}), 400
+
+        message = data['message']
+        tutor_mode = data.get('tutor_mode', False)
+        logging.info(f"Processing chat message, tutor mode: {tutor_mode}")
+
+        # Get relevant context if tutor mode is enabled
+        context = None
+        if tutor_mode:
+            from ai_helper import get_relevant_context
+            context = get_relevant_context(message, current_user.id)
+            if context:
+                context = "Here's some relevant information from the user's materials:\n" + \
+                         "\n".join([f"From {item['title']}:\n{item['content']}" for item in context])
+
+        # Generate response using AI helper
+        from ai_helper import chat_response
+        try:
+            response = chat_response(message, context, tutor_mode, current_user.id)
+
+            # Save chat history
+            chat_record = ChatHistory(
+                user_id=current_user.id,
+                question=message,
+                answer=response
+            )
+            db.session.add(chat_record)
+            db.session.commit()
+
+            return jsonify({
+                'response': response,
+                'success': True
+            })
+
+        except Exception as e:
+            logging.error(f"Error generating chat response: {str(e)}")
+            return jsonify({
+                'error': 'Failed to generate response',
+                'details': str(e)
+            }), 500
+
+    except Exception as e:
+        logging.error(f"Error in chat endpoint: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 # Initialize database
 with app.app_context():
     import models
