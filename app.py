@@ -246,6 +246,7 @@ def test_openai():
             'api_status': 'error'
         }), 500
 
+
 @app.route('/interview-practice/<int:question_id>/answer', methods=['POST'])
 @login_required
 def submit_answer(question_id):
