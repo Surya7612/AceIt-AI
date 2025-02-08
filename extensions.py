@@ -33,6 +33,9 @@ login_manager.init_app(app)
 csrf.init_app(app)  # Initialize CSRF protection
 login_manager.login_view = 'auth.login'
 
+# Ensure upload directory exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
 @login_manager.user_loader
 def load_user(user_id):
     from models import User

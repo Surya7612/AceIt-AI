@@ -3,7 +3,7 @@ import logging
 import random
 import json
 from datetime import datetime
-from flask import request, jsonify, render_template, flash, redirect, url_for
+from flask import Flask, request, jsonify, render_template, flash, redirect, url_for
 from werkzeug.utils import secure_filename
 from extensions import app, db, openai_client  # Import the shared client
 from auth import auth as auth_blueprint
@@ -19,6 +19,13 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Register blueprint
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(subscription_blueprint)
+
+# Make sure all app configs are loaded before running
+if not app.secret_key:
+    app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_key")
+
+if not app.config["SQLALCHEMY_DATABASE_URI"]:
+    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
 
 # Add the JSON filter at the application level
 @app.template_filter('from_json')
