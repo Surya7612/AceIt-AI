@@ -720,31 +720,6 @@ def create_study_plan():
                 logging.error(f"Missing required field: {field}")
                 return jsonify({'error': f'Missing required field: {field}', 'success': False}), 400
 
-        # Process uploaded files if any
-        uploaded_documents = []
-        if 'files' in request.files:
-            files = request.files.getlist('files')
-            for file in files:
-                if file and file.filename:
-                    try:
-                        filename = secure_filename(file.filename)
-                        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                        file.save(filepath)
-
-                        # Create document record
-                        document = Document(
-                            user_id=current_user.id,
-                            original_filename=filename,
-                            file_path=filepath,
-                            processed=False
-                        )
-                        db.session.add(document)
-                        db.session.commit()
-                        uploaded_documents.append(document)
-                    except Exception as e:
-                        logging.error(f"Error processing uploaded file: {e}")
-                        continue
-
         try:
             # Generate AI study schedule with documents if available
             schedule = generate_study_schedule(
@@ -754,7 +729,7 @@ def create_study_plan():
                 completion_date=data['completion_date'],
                 difficulty=data['difficulty'],
                 goals=data['goals'],
-                documents=uploaded_documents,
+                documents=[],  # Initially empty list for documents
                 link=data.get('link')
             )
 
@@ -762,7 +737,6 @@ def create_study_plan():
             study_plan = StudyPlan(
                 user_id=current_user.id,
                 title=data['topic'],
-                category=schedule.get('category', 'General'),
                 content=json.dumps(schedule),
                 priority=int(data['priority']),
                 daily_study_time=int(data['daily_time']),
