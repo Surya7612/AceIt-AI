@@ -28,54 +28,28 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
         target_date = datetime.strptime(completion_date, '%Y-%m-%d')
         days_until_target = (target_date - datetime.now()).days
 
-        # Convert priority to intensity level and detailed requirements
-        priority_details = {
-            1: {
-                "intensity": "high intensity, comprehensive coverage",
-                "depth": "in-depth coverage of both fundamental and advanced concepts",
-                "practice": "extensive practice with complex scenarios",
-                "time_allocation": "60% core concepts, 40% advanced topics"
-            },
-            2: {
-                "intensity": "medium intensity, balanced coverage",
-                "depth": "solid understanding of fundamentals with selected advanced topics",
-                "practice": "balanced practice with mixed difficulty levels",
-                "time_allocation": "70% core concepts, 30% advanced topics"
-            },
-            3: {
-                "intensity": "focused intensity, essential coverage",
-                "depth": "strong grasp of fundamental concepts",
-                "practice": "focused practice on essential skills",
-                "time_allocation": "85% core concepts, 15% advanced topics"
-            }
-        }
-
-        priority_info = priority_details.get(int(priority))
-        intensity = priority_info["intensity"]
+        # Define priority characteristics
+        priority_level = {
+            1: "high intensity with comprehensive coverage",
+            2: "medium intensity with balanced coverage",
+            3: "low intensity focusing on fundamentals"
+        }.get(int(priority), "medium intensity with balanced coverage")
 
         messages = [
             {
                 "role": "system",
-                "content": f"""You are an expert study plan creator specializing in interview preparation. 
-Create a comprehensive study plan following these exact requirements:
+                "content": f"""You are an expert study plan creator. Create a study plan for {topic} with {priority_level}.
 
-1. Content depth and coverage:
-   - Intensity: {priority_info["intensity"]}
-   - Depth: {priority_info["depth"]}
-   - Practice focus: {priority_info["practice"]}
-   - Time allocation: {priority_info["time_allocation"]}
-
-2. Your output MUST be a valid JSON string with this exact structure:
+Your output must be valid JSON with this structure:
 {{
     "title": "{topic}",
-    "summary": "A detailed overview explaining the approach and key focus areas",
+    "summary": "Brief overview of the study approach",
     "difficulty_level": "{difficulty}",
     "estimated_total_hours": number,
-    "priority_level": "{intensity}",
     "key_concepts": [
         {{
             "name": "string",
-            "description": "Detailed concept explanation with examples",
+            "description": "string",
             "priority": "high/medium/low",
             "estimated_time": number
         }}
@@ -83,126 +57,84 @@ Create a comprehensive study plan following these exact requirements:
     "learning_path": [
         {{
             "day": number,
-            "duration_minutes": {daily_time},
-            "topics": ["Specific topics covered"],
+            "topics": ["string"],
             "activities": [
                 {{
-                    "type": "study/practice/review/assessment",
-                    "description": "Detailed activity description",
-                    "duration_minutes": number,
-                    "priority": "high/medium/low"
+                    "type": "study/practice/review",
+                    "description": "string",
+                    "duration_minutes": number
                 }}
             ]
         }}
     ],
-    "sections": [
-        {{
-            "title": "Section title",
-            "content": "Comprehensive content with clear explanations",
-            "key_points": ["Specific key points"],
-            "examples": ["Detailed examples"],
-            "priority": "high/medium/low",
-            "recommended_time": number
-        }}
-    ],
     "practice_questions": [
         {{
-            "question": "Clear, specific question",
-            "answer": "Detailed answer with explanations",
-            "explanation": "Concept explanation and approach",
-            "difficulty": "easy/medium/hard",
-            "category": "Category name",
-            "priority": "high/medium/low"
-        }}
-    ],
-    "additional_resources": [
-        {{
-            "title": "Resource name",
-            "type": "article/video/tutorial/documentation",
-            "description": "What to focus on in this resource",
-            "url": "URL if available",
-            "priority": "high/medium/low"
+            "question": "string",
+            "answer": "string",
+            "difficulty": "easy/medium/hard"
         }}
     ]
-}}
-
-3. Content requirements:
-   - All JSON fields must be present and properly formatted
-   - All number values must be actual numbers, not strings
-   - Use consistent priority values: "high", "medium", "low"
-   - Use consistent difficulty values: "easy", "medium", "hard"
-   - All arrays must have multiple items
-   - Include detailed explanations and examples
-   - Ensure time estimates are realistic and sum up correctly"""
+}}"""
             },
             {
                 "role": "user",
-                "content": f"""Create a detailed study plan with these parameters:
+                "content": f"""Create a study plan for:
 Topic: {topic}
-Priority Level: {priority} (1=High, 2=Medium, 3=Low)
-Daily Study Time: {daily_time} minutes
-Days until completion: {days_until_target} days
-Target Completion: {completion_date}
-Difficulty Level: {difficulty}
-Learning Goals: {goals}
+Daily study time: {daily_time} minutes
+Days until completion: {days_until_target}
+Priority level: {priority}
+Difficulty: {difficulty}
+Goals: {goals}
 
 Requirements:
-1. Plan MUST be completable in {days_until_target} days with {daily_time} minutes daily sessions
-2. Match difficulty level: {difficulty}
-3. Content must be specifically tailored for {topic} interview preparation
-4. Structure content based on priority level {priority}:
-   - High (1): Comprehensive coverage with advanced topics, complex examples, and extensive practice
-   - Medium (2): Balanced coverage with mix of fundamental and advanced topics
-   - Low (3): Focus on core concepts with clear examples and essential practice
-5. Break down daily activities into focused segments within {daily_time} minutes
-6. Include varied practice questions matching difficulty and priority
-7. Ensure realistic time estimates for each activity"""
+1. Plan should fit within {daily_time} minutes daily sessions
+2. Match the {difficulty} difficulty level
+3. Content should focus on {topic} interview preparation
+4. Include at least 3 key concepts and 5 practice questions
+5. Break down activities into {daily_time}-minute sessions"""
             }
         ]
 
         if has_materials:
-            messages[1]["content"] += f"\nIncorporate this additional context:\n{context}"
+            messages[1]["content"] += f"\nUse this additional context:\n{context}"
 
         logging.info("Generating study plan with OpenAI")
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=messages,
             temperature=0.7,
-            max_tokens=3000  # Increased token limit for more detailed content
+            max_tokens=2000
         )
 
-        # Parse and validate the response
+        logging.debug(f"OpenAI response: {response.choices[0].message.content}")
+
+        # Parse and validate response
         try:
             content = response.choices[0].message.content
             schedule = json.loads(content)
 
-            # Enhanced validation
-            required_fields = ["title", "summary", "difficulty_level", "estimated_total_hours", 
-                             "key_concepts", "learning_path", "sections", "practice_questions"]
-
+            # Validate required fields
+            required_fields = ["title", "summary", "key_concepts", "learning_path", "practice_questions"]
             if not all(field in schedule for field in required_fields):
-                raise ValueError("Missing required fields in generated schedule")
+                raise ValueError("Missing required fields in schedule")
 
-            # Validate content length and detail level
+            # Validate content requirements
             if len(schedule["key_concepts"]) < 3:
-                raise ValueError("Insufficient key concepts")
-            if len(schedule["sections"]) < 3:
-                raise ValueError("Insufficient content sections")
+                raise ValueError("Not enough key concepts")
             if len(schedule["practice_questions"]) < 5:
-                raise ValueError("Insufficient practice questions")
+                raise ValueError("Not enough practice questions")
 
-            logging.debug(f"Generated study plan: {json.dumps(schedule, indent=2)}")
             return schedule
 
         except json.JSONDecodeError as je:
-            logging.error(f"Failed to parse OpenAI response as JSON: {str(je)}\nContent: {content}")
+            logging.error(f"JSON parsing error: {str(je)}\nContent: {content}")
             raise Exception("Failed to generate valid study schedule format")
         except Exception as e:
-            logging.error(f"Error validating study schedule: {str(e)}")
+            logging.error(f"Validation error: {str(e)}")
             raise Exception(f"Failed to validate study schedule: {str(e)}")
 
     except Exception as e:
-        logging.error(f"Failed to generate study schedule: {str(e)}")
+        logging.error(f"Study plan generation error: {str(e)}")
         raise
 
 def get_relevant_context(query, user_id=1):
