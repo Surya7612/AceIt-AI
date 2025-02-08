@@ -41,9 +41,16 @@
                         <label for="jobDescription" class="form-label">Enter Job Description</label>
                         <textarea class="form-control mb-2" id="jobDescription" rows="4" placeholder="Paste the job description here..."></textarea>
 
-                        <!-- Simplified Resume Input -->
+                        <!-- Resume Input Section -->
                         <div class="mb-3">
-                            <label class="form-label">Resume (Optional)</label>
+                            <label class="form-label">Resume</label>
+                            <div class="input-group mb-2">
+                                <input type="file" class="form-control" id="resumeFile" accept=".pdf,.doc,.docx,.txt">
+                                <button class="btn btn-outline-secondary" type="button" id="uploadButton">
+                                    <i data-feather="upload"></i> Upload
+                                </button>
+                            </div>
+                            <div class="text-muted small mb-2">Or paste resume content below:</div>
                             <textarea class="form-control" id="resume" rows="4" placeholder="Paste your resume content here..."></textarea>
                         </div>
 
@@ -825,6 +832,50 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize Feather icons
     feather.replace();
+
+    // Add file upload handling
+    const fileInput = document.getElementById('resumeFile');
+    const uploadButton = document.getElementById('uploadButton');
+    const resumeTextArea = document.getElementById('resume');
+
+    function handleFileUpload() {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        if (file.type === 'text/plain') {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                resumeTextArea.value = e.target.result;
+                showUploadSuccess();
+            };
+            reader.readAsText(file);
+        } else {
+            resumeTextArea.value = `[Content from: ${file.name}]`;
+            showUploadSuccess();
+        }
+    }
+
+    function showUploadSuccess() {
+        uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
+        uploadButton.classList.add('btn-success');
+        uploadButton.classList.remove('btn-outline-secondary');
+        feather.replace();
+
+        setTimeout(() => {
+            uploadButton.innerHTML = '<i data-feather="upload"></i> Upload';
+            uploadButton.classList.remove('btn-success');
+            uploadButton.classList.add('btn`btn-outline-secondary');
+            feather.replace();
+        }, 2000);
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', handleFileUpload);
+    }
+
+    if (uploadButton) {
+        uploadButton.addEventListener('click', () => fileInput.click());
+    }
 });
 </script>
 {% endblock %}

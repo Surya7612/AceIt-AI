@@ -79,40 +79,57 @@ def generate_interview_questions():
         logging.info("Starting question generation process")
 
         data = request.get_json()
+        if not data:
+            logging.error("No JSON data received")
+            return jsonify({'error': 'No data provided', 'success': False}), 400
+
         job_description = data.get('job_description', '')
         resume = data.get('resume', '')
 
         if not job_description:
-            return jsonify({'error': 'Job description is required'}), 400
+            logging.error("No job description provided")
+            return jsonify({'error': 'Job description is required', 'success': False}), 400
 
+        logging.info("Checking free user question limit")
         # Check existing questions count for free users
         if not current_user.is_premium:
             existing_questions_count = InterviewQuestion.query.filter_by(user_id=current_user.id).count()
             if existing_questions_count >= 5:  # Limit for free users
+                logging.warning(f"User {current_user.id} hit free tier limit")
                 return jsonify({
                     'error': 'Free users are limited to 5 questions. Upgrade to premium for unlimited questions.',
-                    'premium_required': True
+                    'premium_required': True,
+                    'success': False
                 }), 403
 
-        # First get existing practices to avoid FK constraint violation
-        existing_practices = InterviewPractice.query.join(InterviewQuestion).filter(
-            InterviewQuestion.user_id == current_user.id
-        ).all()
+        try:
+            # First get existing practices to avoid FK constraint violation
+            logging.info("Cleaning up existing practices")
+            existing_practices = InterviewPractice.query.join(InterviewQuestion).filter(
+                InterviewQuestion.user_id == current_user.id
+            ).all()
 
-        # Delete practices first
-        for practice in existing_practices:
-            db.session.delete(practice)
-        db.session.commit()
+            # Delete practices first
+            for practice in existing_practices:
+                db.session.delete(practice)
+            db.session.commit()
 
-        # Now safe to delete questions
-        InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
-        db.session.commit()
+            # Now safe to delete questions
+            logging.info("Cleaning up existing questions")
+            InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
+            db.session.commit()
+
+        except Exception as db_error:
+            logging.error(f"Database cleanup error: {str(db_error)}")
+            db.session.rollback()
+            return jsonify({'error': 'Database error during cleanup', 'success': False}), 500
 
         if not os.environ.get("OPENAI_API_KEY"):
             logging.error("OpenAI API key is not set")
-            return jsonify({'error': 'OpenAI API key is not configured'}), 500
+            return jsonify({'error': 'OpenAI API key is not configured', 'success': False}), 500
 
         client = OpenAI()
+        logging.info("Initialized OpenAI client")
 
         # Generate interview questions with optimized prompt
         num_questions = 5  # Changed from 3 to 5 for free users
@@ -129,22 +146,26 @@ Difficulty: [Easy/Medium/Hard]
 
 Generate exactly {num_questions} questions, no more, no less."""
 
-        logging.info(f"Sending prompt to OpenAI: {questions_prompt}")
+        logging.info("Sending request to OpenAI")
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an expert interviewer generating questions."},
+                    {"role": "user", "content": questions_prompt}
+                ],
+                temperature=0.7,
+                max_tokens=2000,
+                presence_penalty=0.0,
+                frequency_penalty=0.0
+            )
 
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are an expert interviewer generating questions."},
-                {"role": "user", "content": questions_prompt}
-            ],
-            temperature=0.7,
-            max_tokens=2000,
-            presence_penalty=0.0,
-            frequency_penalty=0.0
-        )
+            content = response.choices[0].message.content
+            logging.info(f"Received response from OpenAI: {content}")
 
-        content = response.choices[0].message.content
-        logging.info(f"Received response from OpenAI: {content}")
+        except Exception as openai_error:
+            logging.error(f"OpenAI API error: {str(openai_error)}")
+            return jsonify({'error': f'Failed to generate questions: {str(openai_error)}', 'success': False}), 500
 
         # Parse questions
         questions = []
@@ -172,7 +193,9 @@ Generate exactly {num_questions} questions, no more, no less."""
 
         if not questions:
             logging.error(f"Failed to parse questions from response: {content}")
-            return jsonify({'error': 'Failed to generate questions'}), 500
+            return jsonify({'error': 'Failed to generate valid questions', 'success': False}), 500
+
+        logging.info(f"Successfully parsed {len(questions)} questions")
 
         # Save questions to database
         saved_questions = []
@@ -206,13 +229,13 @@ Generate exactly {num_questions} questions, no more, no less."""
             })
 
         except Exception as db_error:
-            logging.error(f"Database error: {str(db_error)}")
+            logging.error(f"Database error while saving questions: {str(db_error)}")
             db.session.rollback()
-            return jsonify({'error': 'Failed to save questions to database'}), 500
+            return jsonify({'error': 'Failed to save questions to database', 'success': False}), 500
 
     except Exception as e:
         logging.error(f"General error in question generation: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'success': False}), 500
 
 @app.route('/test-openai')
 def test_openai():
