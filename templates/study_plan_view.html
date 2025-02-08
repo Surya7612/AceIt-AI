@@ -10,6 +10,21 @@
                     <small class="text-muted">Created {{ study_plan.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    <button id="deleteStudyPlan" class="btn btn-sm btn-outline-danger" 
+                            onclick="deleteStudyPlan({{ study_plan.id }})">
+                        <i data-feather="trash-2"></i> Delete Plan
+                    </button>
+                    <div id="studySessionControls">
+                        <button id="startSession" class="btn btn-sm btn-success" onclick="startStudySession()">
+                            <i data-feather="play"></i> Start Session
+                        </button>
+                        <button id="endSession" class="btn btn-sm btn-warning d-none" onclick="endStudySession()">
+                            <i data-feather="square"></i> End Session
+                        </button>
+                        <div id="sessionTimer" class="d-none">
+                            Time: <span id="timerDisplay">00:00:00</span>
+                        </div>
+                    </div>
                     <a href="{{ url_for('study_plan') }}" class="btn btn-sm btn-outline-secondary">
                         <i data-feather="arrow-left"></i> Back to Study Plans
                     </a>
@@ -17,11 +32,10 @@
             </div>
             <div class="card-body">
                 {% if study_plan.content %}
-                    {% set content = study_plan.content | tojson | safe %}
                     {% set parsed_content = study_plan.content | from_json %}
                     {% if parsed_content %}
                     <div class="structured-content">
-                        <!-- Summary and Details Section -->
+                        <!-- Title and Summary Section -->
                         <div class="mb-4">
                             <div class="d-flex gap-3 mb-3">
                                 <span class="badge bg-info">
@@ -35,10 +49,35 @@
                                 </span>
                             </div>
                             <div class="alert alert-light">
+                                <h6 class="alert-heading mb-2">Summary</h6>
+                                <p class="mb-0">{{ parsed_content.summary }}</p>
+                            </div>
+                            {% if parsed_content.goals %}
+                            <div class="alert alert-light mt-3">
                                 <h6 class="alert-heading mb-2">Goals</h6>
                                 <p class="mb-0">{{ parsed_content.goals }}</p>
                             </div>
+                            {% endif %}
                         </div>
+
+                        <!-- Key Concepts Section -->
+                        {% if parsed_content.key_concepts %}
+                        <div class="mb-4">
+                            <h3 class="h5 mb-3">Key Concepts</h3>
+                            <div class="row">
+                                {% for concept in parsed_content.key_concepts %}
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card h-100 border-light">
+                                            <div class="card-body">
+                                                <h6 class="card-title">{{ concept.name }}</h6>
+                                                <p class="card-text small mb-0">{{ concept.description }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
 
                         <!-- Content Sections -->
                         {% if parsed_content.sections %}
@@ -95,7 +134,16 @@
                                             <button class="accordion-button collapsed" type="button" 
                                                     data-bs-toggle="collapse" 
                                                     data-bs-target="#question{{ loop.index }}">
-                                                {{ qa.question }}
+                                                <div class="d-flex align-items-center gap-2 w-100">
+                                                    <span>{{ qa.question }}</span>
+                                                    {% if qa.difficulty %}
+                                                    <span class="badge bg-{{ 'success' if qa.difficulty == 'easy' 
+                                                                        else 'warning' if qa.difficulty == 'medium' 
+                                                                        else 'danger' }} ms-auto">
+                                                        {{ qa.difficulty }}
+                                                    </span>
+                                                    {% endif %}
+                                                </div>
                                             </button>
                                         </h2>
                                         <div id="question{{ loop.index }}" class="accordion-collapse collapse" 
@@ -183,10 +231,7 @@ async function endStudySession() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                notes: '' // Optional notes can be added here
-            })
+            }
         });
         const result = await response.json();
 
@@ -197,7 +242,6 @@ async function endStudySession() {
             document.getElementById('sessionTimer').classList.add('d-none');
             currentSessionId = null;
             startTime = null;
-            // Refresh page to show updated study time
             location.reload();
         } else {
             alert('Failed to end study session');

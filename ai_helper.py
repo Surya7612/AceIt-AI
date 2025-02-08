@@ -6,54 +6,96 @@ from extensions import openai_client
 from cache_helper import cache_data, get_cached_data
 from models import Document, StudyPlan
 
-def generate_study_schedule(topic, priority, daily_time, completion_date, difficulty, goals):
-    """Generate an optimized study schedule based on user preferences"""
+def generate_study_schedule(topic, priority, daily_time, completion_date, difficulty, goals, documents=None, link=None):
+    """Generate an optimized study schedule based on user preferences and optional documents"""
     try:
+        # Initialize context from documents if provided
+        context = ""
+        if documents:
+            for doc in documents:
+                if doc.structured_content:
+                    content = json.loads(doc.structured_content)
+                    context += f"\nDocument: {doc.original_filename}\n{content.get('summary', '')}\n"
+
+        if link:
+            context += f"\nProvided resource link: {link}\n"
+
         messages = [
             {
                 "role": "system",
                 "content": """You are a study plan expert. Create an optimized schedule based on the parameters.
-                    Return a JSON object with sections and practice questions."""
-            },
-            {
-                "role": "user", 
-                "content": f"""Create a detailed study plan with these parameters:
-                    Topic: {topic}
-                    Priority Level: {priority} (1=High, 2=Medium, 3=Low)
-                    Daily Study Time: {daily_time} minutes
-                    Target Completion: {completion_date}
-                    Difficulty: {difficulty}
-                    Goals: {goals}
-
-                    The plan should include:
-                    - A summary of the topic and goals
-                    - Key concepts to master
-                    - Detailed study sections with content and examples
-                    - Practice questions with answers and explanations"""
+                    Return a valid JSON object with this exact structure:
+                    {
+                        "title": "string",
+                        "goals": "string",
+                        "summary": "string",
+                        "key_concepts": [
+                            {"name": "string", "description": "string"}
+                        ],
+                        "sections": [
+                            {
+                                "heading": "string",
+                                "content": "string",
+                                "key_points": ["string"],
+                                "examples": ["string"]
+                            }
+                        ],
+                        "practice_questions": [
+                            {
+                                "question": "string",
+                                "answer": "string",
+                                "explanation": "string",
+                                "difficulty": "easy|medium|hard"
+                            }
+                        ]
+                    }"""
             }
         ]
 
+        study_request = f"""Create a detailed study plan with these parameters:
+            Topic: {topic}
+            Priority Level: {priority} (1=High, 2=Medium, 3=Low)
+            Daily Study Time: {daily_time} minutes
+            Target Completion: {completion_date}
+            Difficulty: {difficulty}
+            Goals: {goals}
+
+            {f'Use this context to create relevant content: {context}' if context else 'Generate comprehensive content for this topic.'}
+
+            The plan should include:
+            1. A clear summary of the topic and learning goals
+            2. 3-5 key concepts to master
+            3. 3-4 detailed study sections with examples
+            4. 4-6 practice questions with detailed answers
+            """
+
+        messages.append({"role": "user", "content": study_request})
+
+        logging.info("Generating study plan with OpenAI")
         response = openai_client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4",  # Using gpt-4 for more detailed and structured output
             messages=messages,
-            temperature=0.7
+            temperature=0.7,
+            response_format={"type": "json_object"}
         )
 
         content = response.choices[0].message.content
-        # Parse the response into JSON if it isn't already
+        logging.debug(f"Generated content: {content}")
+
         try:
             schedule = json.loads(content)
-        except json.JSONDecodeError:
-            # If the response isn't JSON, create a structured format
-            schedule = {
-                "title": topic,
-                "goals": goals,
-                "summary": content,
-                "sections": [],
-                "practice_questions": []
-            }
+            # Validate required fields
+            required_fields = ['title', 'goals', 'summary', 'sections', 'practice_questions']
+            if not all(field in schedule for field in required_fields):
+                raise ValueError("Missing required fields in generated content")
+            return schedule
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse generated content as JSON: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Error validating study plan content: {e}")
+            raise
 
-        return schedule
     except Exception as e:
         logging.error(f"Failed to generate study schedule: {e}")
         raise
