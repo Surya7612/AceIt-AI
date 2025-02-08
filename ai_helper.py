@@ -24,48 +24,24 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
             context += f"\nProvided resource link: {link}\n"
             has_materials = True
 
-        messages = [
-            {
-                "role": "system",
-                "content": """You are a study plan expert. Create an optimized schedule based on the parameters.
-                    Return a valid JSON object with this exact structure:
-                    {
-                        "title": "string",
-                        "goals": "string",
-                        "summary": "string",
-                        "key_concepts": [
-                            {"name": "string", "description": "string"}
-                        ],
-                        "sections": [
-                            {
-                                "heading": "string",
-                                "content": "string",
-                                "key_points": ["string"],
-                                "examples": ["string"]
-                            }
-                        ],
-                        "practice_questions": [
-                            {
-                                "question": "string",
-                                "answer": "string",
-                                "explanation": "string",
-                                "difficulty": "easy|medium|hard"
-                            }
-                        ]
-                    }"""
-            }
-        ]
+        system_message = """You are a study plan expert. Create a detailed study schedule that includes:
+1. A clear summary of the topic and learning goals
+2. 3-5 key concepts to master
+3. 3-4 detailed study sections with examples
+4. 4-6 practice questions with detailed answers
+
+Format your response as a structured plan with sections, but do not use strict JSON formatting.
+Include practical examples and exercises where appropriate."""
 
         # Create a study request with clear indication of content source
         base_request = f"""Create a detailed study plan with these parameters:
-            Topic: {topic}
-            Priority Level: {priority} (1=High, 2=Medium, 3=Low)
-            Daily Study Time: {daily_time} minutes
-            Target Completion: {completion_date}
-            Difficulty: {difficulty}
-            Goals: {goals}
-
-            """
+Topic: {topic}
+Priority Level: {priority} (1=High, 2=Medium, 3=Low)
+Daily Study Time: {daily_time} minutes
+Target Completion: {completion_date}
+Difficulty: {difficulty}
+Goals: {goals}
+"""
 
         if has_materials:
             study_request = base_request + f"Use this context to create relevant content: {context}"
@@ -74,40 +50,31 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
                 covering the fundamental concepts and best practices for this topic. Include industry-standard examples 
                 and practical applications."""
 
-        study_request += """
-            The plan should include:
-            1. A clear summary of the topic and learning goals
-            2. 3-5 key concepts to master
-            3. 3-4 detailed study sections with examples
-            4. 4-6 practice questions with detailed answers
-            """
-
-        messages.append({"role": "user", "content": study_request})
+        messages = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": study_request}
+        ]
 
         logging.info("Generating study plan with OpenAI")
         response = openai_client.chat.completions.create(
-            model="gpt-4",  # Using gpt-4 for more detailed and structured output
+            model="gpt-4",  # Using gpt-4 for more detailed output
             messages=messages,
-            temperature=0.7,
-            response_format={"type": "json_object"}
+            temperature=0.7
         )
 
         content = response.choices[0].message.content
         logging.debug(f"Generated content: {content}")
 
-        try:
-            schedule = json.loads(content)
-            # Validate required fields
-            required_fields = ['title', 'goals', 'summary', 'sections', 'practice_questions']
-            if not all(field in schedule for field in required_fields):
-                raise ValueError("Missing required fields in generated content")
-            return schedule
-        except json.JSONDecodeError as e:
-            logging.error(f"Failed to parse generated content as JSON: {e}")
-            raise
-        except Exception as e:
-            logging.error(f"Error validating study plan content: {e}")
-            raise
+        # Convert the response into a structured format
+        schedule = {
+            "title": topic,
+            "goals": goals,
+            "summary": content,
+            "sections": [],
+            "practice_questions": []
+        }
+
+        return schedule
 
     except Exception as e:
         logging.error(f"Failed to generate study schedule: {e}")

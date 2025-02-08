@@ -60,7 +60,6 @@ class StudyPlan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
-    category = db.Column(db.String(50), nullable=False, default='General')
     content = db.Column(db.Text)  # JSON field for storing structured content
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -89,14 +88,6 @@ class StudyPlan(db.Model):
         """Update study plan content"""
         self.content = json.dumps(content_data)
         self.updated_at = datetime.utcnow()
-
-    def update_study_time(self, minutes):
-        """Update total study time"""
-        self.total_study_time = (self.total_study_time or 0) + minutes
-        self.last_studied = datetime.utcnow()
-        if self.daily_study_time:
-            target_total = self.daily_study_time * (self.completion_target - self.created_at).days
-            self.progress = min(100, int((self.total_study_time / target_total) * 100))
 
 class StudySession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
