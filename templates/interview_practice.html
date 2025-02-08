@@ -335,7 +335,6 @@ function createQuestionElement(question) {
 window.generateQuestions = function() {
     const jobDescription = document.getElementById('jobDescription').value;
     const resume = document.getElementById('resume').value;
-    const fileInput = document.getElementById('resumeFile');
 
     if (!jobDescription) {
         alert('Please enter a job description');
@@ -353,12 +352,17 @@ window.generateQuestions = function() {
     // Clear existing questions
     document.getElementById('questionsList').innerHTML = '';
     document.getElementById('practiceArea').style.display = 'none';
-    document.getElementById('compatibilitySection').style.display = 'none';
+
+    // Set a timeout to show an extended loading message after 10 seconds
+    const loadingTimeout = setTimeout(() => {
+        document.querySelector('#loadingSection span').textContent = 
+            'Generating detailed interview questions... This may take a few moments.';
+    }, 10000);
 
     // Ensure we're not sending empty data
     const requestData = {
         job_description: jobDescription,
-        resume: resume || `[No resume provided]`
+        resume: resume || '[No resume provided]'
     };
 
     fetch('/interview-practice/generate', {
@@ -370,6 +374,7 @@ window.generateQuestions = function() {
     })
     .then(response => response.json())
     .then(data => {
+        clearTimeout(loadingTimeout);
         if (data.success) {
             // Show success message and update UI
             loadingSection.style.display = 'none';
@@ -377,25 +382,26 @@ window.generateQuestions = function() {
 
             // Update questions list
             const questionsList = document.getElementById('questionsList');
-            questionsList.innerHTML = data.questions.map(q => createQuestionElement(q)).join('');
+            questionsList.innerHTML = data.questions
+                .map(q => createQuestionElement(q))
+                .join('');
 
-            // Update compatibility section
-            const compatibilitySection = document.getElementById('compatibilitySection');
-            compatibilitySection.style.display = 'block';
-
-            const compatibilityScore = document.getElementById('compatibilityScore');
-            compatibilityScore.style.width = `${data.compatibility_ranking.score}%`;
-            compatibilityScore.setAttribute('aria-valuenow', data.compatibility_ranking.score);
-
-            // Update strengths and gaps
-            updateCompatibilityDetails(data.compatibility_ranking);
+            // Show the first question automatically if available
+            if (data.questions.length > 0) {
+                setTimeout(() => showQuestion(data.questions[0].id), 500);
+            }
         } else {
-            alert('Error generating questions: ' + data.error);
+            if (data.premium_required) {
+                handlePremiumFeatureError(data);
+            } else {
+                alert('Error generating questions: ' + data.error);
+            }
         }
     })
     .catch(error => {
+        clearTimeout(loadingTimeout);
         console.error('Error:', error);
-        alert('Failed to generate questions');
+        alert('Failed to generate questions. Please try again.');
     })
     .finally(() => {
         // Reset UI state

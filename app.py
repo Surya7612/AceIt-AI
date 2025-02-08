@@ -52,8 +52,6 @@ def interview_practice():
     questions = InterviewQuestion.query.filter_by(user_id=current_user.id).all()
     return render_template('interview_practice.html', questions=questions)
 
-@app.route('/interview-practice/generate', methods=['POST'])
-@login_required
 def generate_interview_questions():
     """Generate interview questions based on job description"""
     try:
@@ -98,30 +96,30 @@ def generate_interview_questions():
             InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
             db.session.commit()
 
-            # Generate interview questions
-            questions_prompt = f"""Generate {3 if not current_user.is_premium else 5} interview questions based on this job description.
+            # Generate interview questions with optimized prompt
+            num_questions = 3 if not current_user.is_premium else 5
+            questions_prompt = f"""Generate exactly {num_questions} focused interview questions for this job. Format as:
 
-For each question, provide:
-1. Question text
-2. Sample answer
-3. Category (Technical/Behavioral)
-4. Difficulty (Easy/Medium/Hard)
-
-Format each question exactly like this:
-1. Question: [question text]
-Sample Answer: [answer text]
+1. Question: [brief question]
+Sample Answer: [concise answer]
 Category: [Technical/Behavioral]
 Difficulty: [Easy/Medium/Hard]
-"""
 
+Job Description: {job_description[:500]}"""  # Limit job description length
+
+            start_time = datetime.utcnow()
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": "You are an expert interviewer. Format your response exactly as shown in the prompt."},
+                    {"role": "system", "content": "You are a concise interviewer. Format exactly as shown."},
                     {"role": "user", "content": questions_prompt}
                 ],
-                temperature=0.7  # Allow for some creativity in questions
+                temperature=0.5,  # Reduced for faster responses
+                max_tokens=1000   # Limited tokens for faster response
             )
+            end_time = datetime.utcnow()
+
+            logging.info(f"OpenAI API response time: {(end_time - start_time).total_seconds()} seconds")
 
             content = response.choices[0].message.content
             logging.debug(f"Questions response: {content[:200]}...")
@@ -130,31 +128,23 @@ Difficulty: [Easy/Medium/Hard]
             current_question = {}
 
             # Parse the response
-            question_blocks = content.split('\n\n')
-            for block in question_blocks:
-                if not block.strip():
+            for line in content.split('\n'):
+                line = line.strip()
+                if not line:
                     continue
 
-                if block.strip().startswith(('1.', '2.', '3.', '4.', '5.')):
+                if line.startswith(('1.', '2.', '3.', '4.', '5.')):
                     if current_question:
                         questions.append(current_question)
                         current_question = {}
+                    continue
 
-                    lines = block.strip().split('\n')
-                    question_line = lines[0]
-                    if ': ' in question_line:
-                        current_question['question'] = question_line.split(': ', 1)[1].strip()
-                    elif '. ' in question_line:
-                        current_question['question'] = question_line.split('. ', 1)[1].strip()
-
-                    for line in lines[1:]:
-                        line = line.strip()
-                        if 'Sample Answer:' in line:
-                            current_question['sample_answer'] = line.split(':', 1)[1].strip()
-                        elif 'Category:' in line:
-                            current_question['category'] = line.split(':', 1)[1].strip()
-                        elif 'Difficulty:' in line:
-                            current_question['difficulty'] = line.split(':', 1)[1].strip()
+                for field in ['Question:', 'Sample Answer:', 'Category:', 'Difficulty:']:
+                    if line.startswith(field):
+                        key = field.lower().replace(':', '').strip()
+                        value = line[len(field):].strip()
+                        current_question[key] = value
+                        break
 
             if current_question:
                 questions.append(current_question)
@@ -172,11 +162,11 @@ Difficulty: [Easy/Medium/Hard]
 
                     question = InterviewQuestion(
                         user_id=current_user.id,
-                        question=q['question'],
-                        sample_answer=q.get('sample_answer', 'Not provided'),
+                        question=q.get('question', ''),
+                        sample_answer=q.get('sample answer', 'Not provided'),
                         category=q.get('category', 'General'),
                         difficulty=q.get('difficulty', 'Medium'),
-                        job_description=job_description,
+                        job_description=job_description[:500],  # Limit stored job description
                         success_rate=random.randint(75, 95)  # Sample success rate
                     )
                     db.session.add(question)
