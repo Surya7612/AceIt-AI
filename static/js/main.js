@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 console.log('Sending study plan request...');
-                const response = await fetch('/study-plan/new', {
+                const response = await fetch('/study-plan', {  // Changed from /study-plan/new to /study-plan
                     method: 'POST',
                     body: formData
                 });
