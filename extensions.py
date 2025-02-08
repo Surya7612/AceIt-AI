@@ -26,6 +26,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_key")
+app.config['WTF_CSRF_ENABLED'] = True  # Explicitly enable CSRF protection
 
 # Initialize extensions
 db.init_app(app)
