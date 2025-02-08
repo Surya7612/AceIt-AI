@@ -57,7 +57,7 @@ def index():
 def view_study_plan(plan_id):
     """View a specific study plan"""
     try:
-        from models import StudyPlan
+        from models import StudyPlan, Folder
         study_plan = StudyPlan.query.get_or_404(plan_id)
 
         # Check if the plan belongs to the current user
@@ -65,7 +65,10 @@ def view_study_plan(plan_id):
             flash('You do not have permission to view this study plan.', 'error')
             return redirect(url_for('study_plan'))
 
-        return render_template('study_plan_view.html', study_plan=study_plan)
+        # Get folders for the user
+        folders = Folder.query.filter_by(user_id=current_user.id).all()
+
+        return render_template('study_plan_view.html', study_plan=study_plan, folders=folders)
     except Exception as e:
         logging.error(f"Error viewing study plan: {str(e)}")
         flash('Error loading study plan.', 'error')
@@ -76,18 +79,21 @@ def view_study_plan(plan_id):
 def study_plan():
     """Render the study plans page"""
     try:
-        from models import StudyPlan
+        from models import StudyPlan, Folder
 
         # Get all study plans for the user
         study_plans = StudyPlan.query.filter_by(user_id=current_user.id).order_by(StudyPlan.created_at.desc()).all()
         logging.info(f"Found {len(study_plans)} study plans for user {current_user.id}")
 
-        return render_template('study_plan.html', plans=study_plans)
+        # Get all folders for the user
+        folders = Folder.query.filter_by(user_id=current_user.id).all()
+
+        return render_template('study_plan.html', plans=study_plans, folders=folders)
 
     except Exception as e:
         logging.error(f"Error loading study plans: {str(e)}")
         flash('Error loading study plans.', 'error')
-        return render_template('study_plan.html', plans=[])
+        return render_template('study_plan.html', plans=[], folders=[])
 
 @app.route('/study-plan/<int:plan_id>/session/start', methods=['POST'])
 @login_required

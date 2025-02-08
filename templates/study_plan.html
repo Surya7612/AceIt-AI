@@ -96,7 +96,24 @@
                                             </span>
                                         </div>
                                     </div>
-                                    <div class="text-end">
+                                    <div class="d-flex gap-2">
+                                        <!-- Folder Menu -->
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-link text-muted" type="button" data-bs-toggle="dropdown">
+                                                <i data-feather="folder"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li class="dropdown-header">Add to Folder</li>
+                                                {% for folder in folders %}
+                                                <li>
+                                                    <a class="dropdown-item" href="#" onclick="addToFolder({{ folder.id }}, 'study_plan', {{ plan.id }})">
+                                                        {{ folder.name }}
+                                                    </a>
+                                                </li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                        <!-- View Button -->
                                         <a href="{{ url_for('view_study_plan', plan_id=plan.id) }}"
                                            class="btn btn-sm btn-primary">
                                             View Plan
@@ -159,6 +176,39 @@
                 progressBar.style.display = 'none';
             }
         });
+
+        // Initialize Feather icons
+        feather.replace();
     });
+
+    // Function to add study plan to folder
+    function addToFolder(folderId, itemType, itemId) {
+        fetch(`/folders/${folderId}/items`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                type: itemType,
+                id: itemId
+            })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error moving item: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to add to folder');
+        });
+    }
 </script>
 {% endblock %}

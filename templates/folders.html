@@ -15,7 +15,7 @@
                     <div class="col-md-4">
                         <div class="folders-list" id="foldersList">
                             {% for folder in folders %}
-                            <div class="folder-item p-3 mb-2 bg-light rounded" 
+                            <div class="folder-item p-3 mb-2 rounded" 
                                  data-folder-id="{{ folder.id }}" 
                                  ondrop="dropItem(event)" 
                                  ondragover="allowDrop(event)">
@@ -120,7 +120,30 @@
         </div>
     </div>
 </div>
-{% endblock %}
+
+<style>
+    .folder-item {
+        background-color: var(--bs-body-bg);
+        border: 1px solid var(--bs-border-color);
+        transition: all 0.2s;
+    }
+    .folder-item:hover {
+        background-color: var(--bs-secondary-bg);
+        border-color: var(--bs-primary);
+    }
+    .folder-item.drag-over {
+        background-color: var(--bs-secondary-bg) !important;
+        border-color: var(--bs-primary);
+        transform: scale(1.02);
+    }
+    .draggable-item {
+        cursor: move;
+        transition: all 0.2s;
+    }
+    .draggable-item.dragging {
+        opacity: 0.5;
+    }
+</style>
 
 {% block scripts %}
 <script>
@@ -234,25 +257,5 @@
         // Initialize Feather icons
         feather.replace();
     });
-
-    // Add custom styles for drag and drop
-    const style = document.createElement('style');
-    style.textContent = `
-        .draggable-item {
-            cursor: move;
-        }
-        .draggable-item.dragging {
-            opacity: 0.5;
-        }
-        .folder-item {
-            transition: background-color 0.2s;
-            border: 2px solid transparent;
-        }
-        .folder-item.drag-over {
-            background-color: var(--bs-light) !important;
-            border-color: var(--bs-primary);
-        }
-    `;
-    document.head.appendChild(style);
 </script>
 {% endblock %}
