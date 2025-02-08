@@ -357,7 +357,7 @@ function createQuestionElement(question) {
 }
 
 // Update the generateQuestions function to handle the response better
-window.generateQuestions = function() {
+function generateQuestions() {
     const jobDescription = document.getElementById('jobDescription').value;
     const resume = document.getElementById('resume').value;
 
@@ -383,7 +383,7 @@ window.generateQuestions = function() {
     // Set a timeout to show an extended loading message after 10 seconds
     const loadingTimeout = setTimeout(() => {
         document.querySelector('#loadingSection span').textContent = 
-            'Analyzing job compatibility and generating questions... This may take a few moments.';
+            'Analyzing and generating questions... This may take a few moments.';
     }, 10000);
 
     // Ensure we're not sending empty data
@@ -402,28 +402,23 @@ window.generateQuestions = function() {
     .then(response => response.json())
     .then(data => {
         clearTimeout(loadingTimeout);
-        console.log('Response from server:', data); // Debug log
+        console.log('Response from server:', data);
 
         if (data.success) {
-            // Show success message and update UI
+            // Show success message
             loadingSection.style.display = 'none';
             successSection.style.display = 'block';
 
-            // Update compatibility details if available
-            if (data.compatibility) {
-                updateCompatibilityDetails(data.compatibility);
-            }
-
             // Update questions list
             const questionsList = document.getElementById('questionsList');
-            console.log('Questions received:', data.questions); // Debug log
+            console.log('Questions received:', data.questions);
 
             if (Array.isArray(data.questions) && data.questions.length > 0) {
                 questionsList.innerHTML = data.questions
                     .map(q => createQuestionElement(q))
                     .join('');
 
-                // Show the first question automatically if available
+                // Show the first question automatically
                 setTimeout(() => showQuestion(data.questions[0].id), 500);
             } else {
                 console.error('No questions received or invalid format');
@@ -433,7 +428,7 @@ window.generateQuestions = function() {
             if (data.premium_required) {
                 handlePremiumFeatureError(data);
             } else {
-                alert('Error generating questions: ' + data.error);
+                alert('Error generating questions: ' + (data.error || 'Unknown error'));
             }
         }
     })
@@ -864,7 +859,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
             uploadButton.innerHTML = '<i data-feather="upload"></i> Upload';
             uploadButton.classList.remove('btn-success');
-            uploadButton.classList.add('btn`btn-outline-secondary');
+            uploadButton.classList.add('btn-outline-secondary');
             feather.replace();
         }, 2000);
     }
@@ -873,7 +868,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fileInput.addEventListener('change', handleFileUpload);
     }
 
-    if (uploadButton) {
+    if (<previous_generation>uploadButton) {
         uploadButton.addEventListener('click', () => fileInput.click());
     }
 });

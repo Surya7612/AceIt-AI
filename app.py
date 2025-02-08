@@ -90,35 +90,11 @@ def generate_interview_questions():
             logging.error("No job description provided")
             return jsonify({'error': 'Job description is required', 'success': False}), 400
 
-        logging.info("Checking free user question limit")
-        # Check existing questions count for free users
-        if not current_user.is_premium:
-            existing_questions_count = InterviewQuestion.query.filter_by(user_id=current_user.id).count()
-            if existing_questions_count >= 5:  # Limit for free users
-                logging.warning(f"User {current_user.id} hit free tier limit")
-                return jsonify({
-                    'error': 'Free users are limited to 5 questions. Upgrade to premium for unlimited questions.',
-                    'premium_required': True,
-                    'success': False
-                }), 403
-
+        # Clear existing questions first
         try:
-            # First get existing practices to avoid FK constraint violation
-            logging.info("Cleaning up existing practices")
-            existing_practices = InterviewPractice.query.join(InterviewQuestion).filter(
-                InterviewQuestion.user_id == current_user.id
-            ).all()
-
-            # Delete practices first
-            for practice in existing_practices:
-                db.session.delete(practice)
-            db.session.commit()
-
-            # Now safe to delete questions
             logging.info("Cleaning up existing questions")
             InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
             db.session.commit()
-
         except Exception as db_error:
             logging.error(f"Database cleanup error: {str(db_error)}")
             db.session.rollback()
@@ -132,19 +108,17 @@ def generate_interview_questions():
         logging.info("Initialized OpenAI client")
 
         # Generate interview questions with optimized prompt
-        num_questions = 5  # Changed from 3 to 5 for free users
-        questions_prompt = f"""Generate {num_questions} interview questions based on this job description:
+        questions_prompt = f"""Generate 5 interview questions based on this job description:
 
-Job Description: {job_description[:500]}
+{job_description[:500]}
 
 For each question, use this EXACT format with no variations:
 
 Question: [The interview question]
-Sample Answer: [A good answer to the question]
 Category: [Technical/Behavioral]
 Difficulty: [Easy/Medium/Hard]
 
-Generate exactly {num_questions} questions, no more, no less."""
+Generate exactly 5 questions."""
 
         logging.info("Sending request to OpenAI")
         try:
@@ -155,9 +129,7 @@ Generate exactly {num_questions} questions, no more, no less."""
                     {"role": "user", "content": questions_prompt}
                 ],
                 temperature=0.7,
-                max_tokens=2000,
-                presence_penalty=0.0,
-                frequency_penalty=0.0
+                max_tokens=2000
             )
 
             content = response.choices[0].message.content
@@ -177,19 +149,15 @@ Generate exactly {num_questions} questions, no more, no less."""
                 continue
 
             if line.startswith('Question:'):
-                if current_question:  # Save previous question if exists
+                if current_question:
                     questions.append(current_question)
                 current_question = {'question': line[9:].strip()}
-            elif line.startswith('Sample Answer:'):
-                current_question['sample_answer'] = line[14:].strip()
             elif line.startswith('Category:'):
                 current_question['category'] = line[9:].strip()
             elif line.startswith('Difficulty:'):
                 current_question['difficulty'] = line[11:].strip()
-                # After difficulty, the question is complete
-                if current_question:
-                    questions.append(current_question)
-                    current_question = {}
+                questions.append(current_question)
+                current_question = {}
 
         if not questions:
             logging.error(f"Failed to parse questions from response: {content}")
@@ -201,14 +169,12 @@ Generate exactly {num_questions} questions, no more, no less."""
         saved_questions = []
         try:
             for q in questions:
-                if all(k in q for k in ['question', 'sample_answer', 'category', 'difficulty']):
+                if all(k in q for k in ['question', 'category', 'difficulty']):
                     question = InterviewQuestion(
                         user_id=current_user.id,
                         question=q['question'],
-                        sample_answer=q['sample_answer'],
                         category=q['category'],
                         difficulty=q['difficulty'],
-                        job_description=job_description[:500],
                         success_rate=random.randint(75, 95)
                     )
                     db.session.add(question)
