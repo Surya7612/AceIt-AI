@@ -1,8 +1,5 @@
 import os
 import logging
-import random
-import json
-from datetime import datetime
 from flask import Flask, request, jsonify, render_template, flash, redirect, url_for
 from werkzeug.utils import secure_filename
 from extensions import app, db, openai_client  # Import the shared client
@@ -12,6 +9,7 @@ from subscription import subscription as subscription_blueprint, premium_require
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -23,9 +21,17 @@ app.register_blueprint(subscription_blueprint)
 # Make sure all app configs are loaded before running
 if not app.secret_key:
     app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_key")
+    logger.info("Setting secret key from environment")
 
 if not app.config["SQLALCHEMY_DATABASE_URI"]:
     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+    logger.info("Setting database URI from environment")
+
+# Log application startup
+logger.info("Application initialized with configurations:")
+logger.info(f"Debug mode: {app.debug}")
+logger.info(f"Upload folder: {app.config['UPLOAD_FOLDER']}")
+logger.info(f"Database configured: {bool(app.config['SQLALCHEMY_DATABASE_URI'])}")
 
 # Add the JSON filter at the application level
 @app.template_filter('from_json')
@@ -33,7 +39,7 @@ def from_json_filter(value):
     try:
         return json.loads(value) if value else None
     except Exception as e:
-        logging.error(f"JSON parsing error: {str(e)}")
+        logger.error(f"JSON parsing error: {str(e)}") # Updated logger
         return None
 
 # Update index route to include study plans
@@ -56,7 +62,7 @@ def index():
 
         return render_template('index.html', recent_docs=recent_docs, recent_plans=recent_plans)
     except Exception as e:
-        logging.error(f"Error loading home page: {str(e)}")
+        logger.error(f"Error loading home page: {str(e)}") # Updated logger
         return render_template('index.html', recent_docs=[], recent_plans=[])
 
 @app.route('/study-plan/<int:plan_id>')
@@ -77,7 +83,7 @@ def view_study_plan(plan_id):
 
         return render_template('study_plan_view.html', study_plan=study_plan, folders=folders)
     except Exception as e:
-        logging.error(f"Error viewing study plan: {str(e)}")
+        logger.error(f"Error viewing study plan: {str(e)}") # Updated logger
         flash('Error loading study plan.', 'error')
         return redirect(url_for('study_plan'))
 
@@ -90,7 +96,7 @@ def study_plan():
 
         # Get all study plans for the user
         study_plans = StudyPlan.query.filter_by(user_id=current_user.id).order_by(StudyPlan.created_at.desc()).all()
-        logging.info(f"Found {len(study_plans)} study plans for user {current_user.id}")
+        logger.info(f"Found {len(study_plans)} study plans for user {current_user.id}") # Updated logger
 
         # Get all folders for the user
         folders = Folder.query.filter_by(user_id=current_user.id).all()
@@ -98,7 +104,7 @@ def study_plan():
         return render_template('study_plan.html', plans=study_plans, folders=folders)
 
     except Exception as e:
-        logging.error(f"Error loading study plans: {str(e)}")
+        logger.error(f"Error loading study plans: {str(e)}") # Updated logger
         flash('Error loading study plans.', 'error')
         return render_template('study_plan.html', plans=[], folders=[])
 
@@ -108,14 +114,14 @@ def start_study_session(plan_id):
     """Start a study session"""
     try:
         from models import StudyPlan, StudySession
-        logging.info(f"Starting study session for plan {plan_id}")
+        logger.info(f"Starting study session for plan {plan_id}") # Updated logger
 
         # Get the study plan
         study_plan = StudyPlan.query.get_or_404(plan_id)
 
         # Verify ownership
         if study_plan.user_id != current_user.id:
-            logging.warning(f"Unauthorized attempt to start session for plan {plan_id}")
+            logger.warning(f"Unauthorized attempt to start session for plan {plan_id}") # Updated logger
             return jsonify({'error': 'Unauthorized'}), 403
 
         # Check for existing active session
@@ -126,7 +132,7 @@ def start_study_session(plan_id):
         ).first()
 
         if active_session:
-            logging.warning(f"Active session {active_session.id} already exists for plan {plan_id}")
+            logger.warning(f"Active session {active_session.id} already exists for plan {plan_id}") # Updated logger
             return jsonify({
                 'success': True, 
                 'session_id': active_session.id,
@@ -142,19 +148,19 @@ def start_study_session(plan_id):
             )
             db.session.add(session)
             db.session.commit()
-            logging.info(f"Successfully created session {session.id} for plan {plan_id}")
+            logger.info(f"Successfully created session {session.id} for plan {plan_id}") # Updated logger
 
             return jsonify({
                 'success': True,
                 'session_id': session.id
             })
         except Exception as db_error:
-            logging.error(f"Database error creating session: {str(db_error)}")
+            logger.error(f"Database error creating session: {str(db_error)}") # Updated logger
             db.session.rollback()
             return jsonify({'error': 'Failed to create study session'}), 500
 
     except Exception as e:
-        logging.error(f"Error starting study session: {str(e)}")
+        logger.error(f"Error starting study session: {str(e)}") # Updated logger
         return jsonify({'error': str(e)}), 500
 
 @app.route('/study-plan/<int:plan_id>/session/<int:session_id>/end', methods=['POST'])
@@ -181,12 +187,12 @@ def end_study_session(plan_id, session_id):
             db.session.commit()
             return jsonify({'success': True})
         except Exception as db_error:
-            logging.error(f"Database error ending session: {str(db_error)}")
+            logger.error(f"Database error ending session: {str(db_error)}") # Updated logger
             db.session.rollback()
             return jsonify({'error': 'Failed to end study session'}), 500
 
     except Exception as e:
-        logging.error(f"Error ending study session: {str(e)}")
+        logger.error(f"Error ending study session: {str(e)}") # Updated logger
         return jsonify({'error': str(e)}), 500
 
 @app.route('/study-plan/<int:plan_id>/delete', methods=['POST'])
@@ -205,7 +211,7 @@ def delete_study_plan(plan_id):
 
         return jsonify({'success': True})
     except Exception as e:
-        logging.error(f"Error deleting study plan: {str(e)}")
+        logger.error(f"Error deleting study plan: {str(e)}") # Updated logger
         return jsonify({'error': str(e)}), 500
 
 @app.route('/documents')
@@ -238,7 +244,7 @@ def folders():
                             study_plans=study_plans,
                             documents=documents)
     except Exception as e:
-        logging.error(f"Error loading folders: {str(e)}")
+        logger.error(f"Error loading folders: {str(e)}") # Updated logger
         return render_template('folders.html', 
                             folders=[],
                             study_plans=[],
@@ -264,7 +270,7 @@ def create_folder():
 
         return jsonify({'success': True, 'folder_id': folder.id})
     except Exception as e:
-        logging.error(f"Error creating folder: {str(e)}")
+        logger.error(f"Error creating folder: {str(e)}") # Updated logger
         return jsonify({'error': str(e)}), 500
 
 @app.route('/folders/<int:folder_id>/items', methods=['POST'])
@@ -300,7 +306,7 @@ def add_to_folder(folder_id):
         db.session.commit()
         return jsonify({'success': True})
     except Exception as e:
-        logging.error(f"Error adding item to folder: {str(e)}")
+        logger.error(f"Error adding item to folder: {str(e)}") # Updated logger
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
@@ -318,23 +324,23 @@ def generate_interview_questions():
     """Generate interview questions based on job description"""
     try:
         from models import InterviewQuestion, InterviewPractice
-        logging.info("Starting question generation process")
+        logger.info("Starting question generation process") # Updated logger
 
         data = request.get_json()
         if not data:
-            logging.error("No JSON data received")
+            logger.error("No JSON data received") # Updated logger
             return jsonify({'error': 'No data provided', 'success': False}), 400
 
         job_description = data.get('job_description', '')
         resume = data.get('resume', '')
 
         if not job_description:
-            logging.error("No job description provided")
+            logger.error("No job description provided") # Updated logger
             return jsonify({'error': 'Job description is required', 'success': False}), 400
 
         # Delete practices first to avoid FK constraint violation
         try:
-            logging.info("Cleaning up existing practice records")
+            logger.info("Cleaning up existing practice records") # Updated logger
             InterviewPractice.query.filter(
                 InterviewPractice.question_id.in_(
                     db.session.query(InterviewQuestion.id).filter_by(user_id=current_user.id)
@@ -342,11 +348,11 @@ def generate_interview_questions():
             ).delete(synchronize_session=False)
             db.session.commit()
 
-            logging.info("Cleaning up existing questions")
+            logger.info("Cleaning up existing questions") # Updated logger
             InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
             db.session.commit()
         except Exception as db_error:
-            logging.error(f"Database cleanup error: {str(db_error)}")
+            logger.error(f"Database cleanup error: {str(db_error)}") # Updated logger
             db.session.rollback()
             return jsonify({'error': 'Database error during cleanup', 'success': False}), 500
 
@@ -385,10 +391,10 @@ Provide a detailed ATS analysis in this exact JSON format:
                 )
 
                 compatibility = json.loads(compatibility_response.choices[0].message.content)
-                logging.info("Generated ATS compatibility analysis")
+                logger.info("Generated ATS compatibility analysis") # Updated logger
 
             except Exception as analysis_error:
-                logging.error(f"Error generating compatibility analysis: {str(analysis_error)}")
+                logger.error(f"Error generating compatibility analysis: {str(analysis_error)}") # Updated logger
                 # Continue without compatibility analysis if it fails
 
         # Generate interview questions
@@ -404,7 +410,7 @@ Difficulty: [Easy/Medium/Hard]
 
 Generate exactly 5 questions."""
 
-        logging.info("Sending request to OpenAI")
+        logger.info("Sending request to OpenAI") # Updated logger
         try:
             response = openai_client.chat.completions.create(
                 model="gpt-4", # Changed to gpt-4
@@ -417,10 +423,10 @@ Generate exactly 5 questions."""
             )
 
             content = response.choices[0].message.content
-            logging.info(f"Received response from OpenAI: {content}")
+            logger.info(f"Received response from OpenAI: {content}") # Updated logger
 
         except Exception as openai_error:
-            logging.error(f"OpenAI API error: {str(openai_error)}")
+            logger.error(f"OpenAI API error: {str(openai_error)}") # Updated logger
             return jsonify({'error': f'Failed to generate questions: {str(openai_error)}', 'success': False}), 500
 
         # Parse questions
@@ -444,10 +450,10 @@ Generate exactly 5 questions."""
                 current_question = {}
 
         if not questions:
-            logging.error(f"Failed to parse questions from response: {content}")
+            logger.error(f"Failed to parse questions from response: {content}") # Updated logger
             return jsonify({'error': 'Failed to generate valid questions', 'success': False}), 500
 
-        logging.info(f"Successfully parsed {len(questions)} questions")
+        logger.info(f"Successfully parsed {len(questions)} questions") # Updated logger
 
         # Save questions to database
         saved_questions = []
@@ -466,7 +472,7 @@ Generate exactly 5 questions."""
                     saved_questions.append(question)
 
             db.session.commit()
-            logging.info(f"Successfully saved {len(saved_questions)} questions")
+            logger.info(f"Successfully saved {len(saved_questions)} questions") # Updated logger
 
             response_data = {
                 'success': True,
@@ -485,20 +491,20 @@ Generate exactly 5 questions."""
             return jsonify(response_data)
 
         except Exception as db_error:
-            logging.error(f"Database error while saving questions: {str(db_error)}")
+            logger.error(f"Database error while saving questions: {str(db_error)}") # Updated logger
             db.session.rollback()
             return jsonify({'error': 'Failed to save questions to database', 'success': False}), 500
 
     except Exception as e:
-        logging.error(f"General error in question generation: {str(e)}")
+        logger.error(f"General error in question generation: {str(e)}") # Updated logger
         return jsonify({'error': str(e), 'success': False}), 500
 
 @app.route('/test-openai')
 def test_openai():
     """Test OpenAI API connection"""
     try:
-        logging.info("Testing OpenAI API connection")
-        logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
+        logger.info("Testing OpenAI API connection") # Updated logger
+        logger.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}") # Updated logger
 
         response = openai_client.chat.completions.create(
             model="gpt-4",  # Using standard gpt-4 model
@@ -508,14 +514,14 @@ def test_openai():
         )
 
         if response and response.choices and response.choices[0].message:
-            logging.info("OpenAI API test successful")
+            logger.info("OpenAI API test successful") # Updated logger
             return jsonify({
                 'success': True,
                 'message': response.choices[0].message.content,
                 'api_status': 'working'
             })
         else:
-            logging.error("Invalid response format from OpenAI")
+            logger.error("Invalid response format from OpenAI") # Updated logger
             return jsonify({
                 'success': False,
                 'error': 'Invalid response format',
@@ -523,7 +529,7 @@ def test_openai():
             }), 500
 
     except Exception as e:
-        logging.error(f"Error testing OpenAI connection: {str(e)}")
+        logger.error(f"Error testing OpenAI connection: {str(e)}") # Updated logger
         return jsonify({
             'success': False,
             'error': str(e),
@@ -537,7 +543,7 @@ def submit_answer(question_id):
     """Submit an answer for an interview question"""
     try:
         from models import InterviewPractice, InterviewQuestion
-        logging.info("Starting answer submission process")
+        logger.info("Starting answer submission process") # Updated logger
 
         # Get the question
         question = InterviewQuestion.query.get_or_404(question_id)
@@ -592,9 +598,9 @@ def submit_answer(question_id):
                         file=audio_file
                     )
                 practice.user_answer = transcript.text
-                logging.info(f"Transcribed answer: {practice.user_answer}")
+                logger.info(f"Transcribed answer: {practice.user_answer}") # Updated logger
             except Exception as e:
-                logging.error(f"Error transcribing audio: {str(e)}")
+                logger.error(f"Error transcribing audio: {str(e)}") # Updated logger
                 practice.user_answer = f"[{answer_type.upper()} Response - Transcription Failed]"
 
         # Generate AI feedback for answer
@@ -616,7 +622,7 @@ You MUST format your response as a valid JSON object with exactly these fields:
 Respond ONLY with the JSON object, no additional text."""
 
         try:
-            logging.info("Sending feedback request to OpenAI")
+            logger.info("Sending feedback request to OpenAI") # Updated logger
             response = openai_client.chat.completions.create(
                 model="gpt-4", # Changed to gpt-4
                 messages=[
@@ -628,7 +634,7 @@ Respond ONLY with the JSON object, no additional text."""
 
             # Log the raw response
             feedback_data = response.choices[0].message.content
-            logging.debug(f"Raw feedback response: {feedback_data}")
+            logger.debug(f"Raw feedback response: {feedback_data}") # Updated logger
 
             try:
                 feedback_dict = json.loads(feedback_data.strip())
@@ -647,10 +653,10 @@ Respond ONLY with the JSON object, no additional text."""
                     feedback_dict['confidence_score'] = max(0, min(100, float(feedback_dict['confidence_score'])))
 
             except json.JSONDecodeError as e:
-                logging.error(f"Failed to parse OpenAI response as JSON: {str(e)}")
+                logger.error(f"Failed to parse OpenAI response as JSON: {str(e)}") # Updated logger
                 return jsonify({'error': 'Invalid feedback format from AI'}), 500
             except ValueError as e:
-                logging.error(f"Invalid feedback format: {str(e)}")
+                logger.error(f"Invalid feedback format: {str(e)}") # Updated logger
                 return jsonify({'error': str(e)}), 500
 
             practice.score = feedback_dict['score']
@@ -672,12 +678,12 @@ Respond ONLY with the JSON object, no additional text."""
             })
 
         except Exception as e:
-            logging.error(f"Error generating AI feedback: {str(e)}")
+            logger.error(f"Error generating AI feedback: {str(e)}") # Updated logger
             db.session.rollback()
             return jsonify({'error': f'Failed to generate AI feedback: {str(e)}'}), 500
 
     except Exception as e:
-        logging.error(f"Error submitting answer: {str(e)}")
+        logger.error(f"Error submitting answer: {str(e)}") # Updated logger
         return jsonify({'error': str(e)}), 500
 
 
@@ -687,7 +693,7 @@ def export_interview_data():
     """Export interview practice data"""
     try:
         from models import InterviewQuestion, InterviewPractice
-        logging.info("Starting data export process")
+        logger.info("Starting data export process") # Updated logger
 
         # Get all questions and their practices for the current user
         questions = InterviewQuestion.query.filter_by(user_id=current_user.id).all()
@@ -722,7 +728,7 @@ def export_interview_data():
         })
 
     except Exception as e:
-        logging.error(f"Error exporting data: {str(e)}")
+        logger.error(f"Error exporting data: {str(e)}") # Updated logger
         return jsonify({'error': str(e), 'success': False}), 500
 
 @app.route('/interview-practice/clear', methods=['POST'])
@@ -731,7 +737,7 @@ def clear_interview_data():
     """Clear all interview practice data"""
     try:
         from models import InterviewQuestion, InterviewPractice
-        logging.info("Starting data clear process")
+        logger.info("Starting data clear process") # Updated logger
 
         # First delete practices to avoid FK constraint violations
         InterviewPractice.query.filter_by(user_id=current_user.id).delete()
@@ -744,7 +750,7 @@ def clear_interview_data():
         return jsonify({'success': True})
 
     except Exception as e:
-        logging.error(f"Error clearing data: {str(e)}")
+        logger.error(f"Error clearing data: {str(e)}") # Updated logger
         db.session.rollback()
         return jsonify({'error': str(e), 'success': False}), 500
 
@@ -755,17 +761,17 @@ def create_study_plan():
     try:
         from models import StudyPlan
         from ai_helper import generate_study_schedule
-        logging.info("Starting study plan creation process")
+        logger.info("Starting study plan creation process") # Updated logger
 
         # Get form data and log it
         data = request.form.to_dict()
-        logging.info(f"Received form data: {data}")
+        logger.info(f"Received form data: {data}") # Updated logger
 
         # Basic validation
         required_fields = ['topic', 'priority', 'daily_time', 'completion_date', 'difficulty', 'goals']
         for field in required_fields:
             if field not in data:
-                logging.error(f"Missing required field: {field}")
+                logger.error(f"Missing required field: {field}") # Updated logger
                 return jsonify({'error': f'Missing required field: {field}', 'success': False}), 400
 
         try:
@@ -773,10 +779,10 @@ def create_study_plan():
             priority = int(data['priority'])
             daily_time = int(data['daily_time'])
             completion_target = datetime.strptime(data['completion_date'], '%Y-%m-%d')
-            logging.info(f"Parsed values - priority: {priority}, daily_time: {daily_time}, completion_target: {completion_target}")
+            logger.info(f"Parsed values - priority: {priority}, daily_time: {daily_time}, completion_target: {completion_target}") # Updated logger
 
             # Generate AI study schedule
-            logging.info("Calling generate_study_schedule")
+            logger.info("Calling generate_study_schedule") # Updated logger
             schedule = generate_study_schedule(
                 topic=data['topic'],
                 priority=priority,
@@ -787,7 +793,7 @@ def create_study_plan():
                 documents=[],
                 link=data.get('link', '')
             )
-            logging.info("Generated schedule successfully")
+            logger.info("Generated schedule successfully") # Updated logger
 
             # Create study plan object with all required fields
             study_plan = StudyPlan(
@@ -803,16 +809,16 @@ def create_study_plan():
                 progress=0,  # Initialize progress
                 total_study_time=0  # Initialize study time
             )
-            logging.info(f"Created study plan object: {study_plan.title}")
+            logger.info(f"Created study plan object: {study_plan.title}") # Updated logger
 
             # Save to database with explicit error handling
             try:
                 db.session.add(study_plan)
                 db.session.commit()
-                logging.info(f"Successfully saved study plan with ID: {study_plan.id}")
+                logger.info(f"Successfully saved study plan with ID: {study_plan.id}") # Updated logger
             except Exception as db_error:
                 db.session.rollback()
-                logging.error(f"Database error while saving study plan: {str(db_error)}")
+                logger.error(f"Database error while saving study plan: {str(db_error)}") # Updated logger
                 return jsonify({'error': 'Failed to save study plan to database', 'success': False}), 500
 
             return jsonify({
@@ -821,11 +827,11 @@ def create_study_plan():
             })
 
         except ValueError as ve:
-            logging.error(f"Value error while creating study plan: {str(ve)}")
+            logger.error(f"Value error while creating study plan: {str(ve)}") # Updated logger
             return jsonify({'error': f'Invalid data format: {str(ve)}', 'success': False}), 400
 
     except Exception as e:
-        logging.error(f"Error creating study plan: {str(e)}")
+        logger.error(f"Error creating study plan: {str(e)}") # Updated logger
         return jsonify({'error': str(e), 'success': False}), 500
 
 @app.route('/chat', methods=['POST'])
@@ -840,7 +846,7 @@ def chat():
 
         message = data['message']
         tutor_mode = data.get('tutor_mode', False)
-        logging.info(f"Processing chat message, tutor mode: {tutor_mode}")
+        logger.info(f"Processing chat message, tutor mode: {tutor_mode}") # Updated logger
 
         # Get relevant context if tutor mode is enabled
         context = None
@@ -870,14 +876,14 @@ def chat():
             })
 
         except Exception as e:
-            logging.error(f"Error generating chat response: {str(e)}")
+            logger.error(f"Error generating chat response: {str(e)}") # Updated logger
             return jsonify({
                 'error': 'Failed to generate response',
                 'details': str(e)
             }), 500
 
     except Exception as e:
-        logging.error(f"Error in chat endpoint: {str(e)}")
+        logger.error(f"Error in chat endpoint: {str(e)}") # Updated logger
         return jsonify({'error': str(e)}), 500
 
 # Initialize database
@@ -900,8 +906,8 @@ def handle_study_plan_chat():
         if not message:
             return jsonify({'error': 'Message is required'}), 400
 
-        logging.info(f"Received chat request data: {data}")
-        logging.info("Generating AI response")
+        logger.info(f"Received chat request data: {data}") # Updated logger
+        logger.info("Generating AI response") # Updated logger
 
         # Get study plan context
         study_plan = None
@@ -936,8 +942,8 @@ Content from the study plan:
 
             messages.append({"role": "user", "content": message})
 
-            logging.debug(f"Sending chat request with tutor_mode={bool(context)}")
-            logging.debug(f"Context available: {bool(context)}")
+            logger.debug(f"Sending chat request with tutor_mode={bool(context)}") # Updated logger
+            logger.debug(f"Context available: {bool(context)}") # Updated logger
 
             response = openai_client.chat.completions.create(
                 model="gpt-4",
@@ -963,7 +969,7 @@ Content from the study plan:
             })
 
         except Exception as ai_error:
-            logging.error(f"AI response error: {str(ai_error)}")
+            logger.error(f"AI response error: {str(ai_error)}") # Updated logger
             db.session.rollback()
             return jsonify({
                 'error': 'Failed to generate response',
@@ -971,5 +977,7 @@ Content from the study plan:
             }), 500
 
     except Exception as e:
-        logging.error(f"Error in chat handler: {str(e)}")
+        logger.error(f"Error in chat handler: {str(e)}") # Updated logger
         return jsonify({'error': str(e)}), 500
+import json
+from datetime import datetime
