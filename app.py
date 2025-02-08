@@ -99,81 +99,89 @@ def generate_interview_questions():
 
         # Generate interview questions with optimized prompt
         num_questions = 3 if not current_user.is_premium else 5
-        questions_prompt = f"""Generate exactly {num_questions} focused interview questions for this job. Format as:
+        questions_prompt = f"""Generate exactly {num_questions} focused interview questions based on this job description. Use this EXACT format with no deviations:
 
-1. Question: [brief question]
-Sample Answer: [concise answer]
+1. Question: [question text]
+Sample Answer: [answer text]
 Category: [Technical/Behavioral]
 Difficulty: [Easy/Medium/Hard]
 
-Job Description: {job_description[:500]}"""  # Limit job description length
+2. Question: [question text]
+Sample Answer: [answer text]
+Category: [Technical/Behavioral]
+Difficulty: [Easy/Medium/Hard]
+
+Job Description: {job_description[:500]}"""
 
         start_time = datetime.utcnow()
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a concise interviewer. Format exactly as shown."},
+                {"role": "system", "content": "You are a concise interviewer. You MUST use the exact format provided."},
                 {"role": "user", "content": questions_prompt}
             ],
-            temperature=0.5,  # Reduced for faster responses
-            max_tokens=1000   # Limited tokens for faster response
+            temperature=0.5,
+            max_tokens=1000
         )
         end_time = datetime.utcnow()
 
         logging.info(f"OpenAI API response time: {(end_time - start_time).total_seconds()} seconds")
-
         content = response.choices[0].message.content
-        logging.debug(f"Questions response: {content[:200]}...")
+        logging.debug(f"Full OpenAI response: {content}")  # Log full response for debugging
 
+        # Parse response into questions
         questions = []
         current_question = {}
         key_mapping = {
             'Question:': 'question',
-            'Sample Answer:': 'sample_answer',  # Changed from 'sample answer' to 'sample_answer'
+            'Sample Answer:': 'sample_answer',
             'Category:': 'category',
             'Difficulty:': 'difficulty'
         }
 
-        # Parse the response with improved logic
-        for line in content.split('\n'):
+        lines = content.split('\n')
+        for line in lines:
             line = line.strip()
             if not line:
                 continue
 
+            # When a new question starts, save the previous one
             if line.startswith(('1.', '2.', '3.', '4.', '5.')):
                 if current_question:
                     questions.append(current_question)
-                    current_question = {}
+                current_question = {}
                 continue
 
+            # Match and extract fields
             for prefix, key in key_mapping.items():
                 if line.startswith(prefix):
                     value = line[len(prefix):].strip()
                     current_question[key] = value
                     break
 
-        if current_question:
+        # Don't forget to add the last question
+        if current_question and len(current_question) >= len(key_mapping):
             questions.append(current_question)
 
         if not questions:
-            logging.error("No questions were parsed from the response")
+            logging.error("No questions were parsed. Full content: " + content)
             return jsonify({'error': 'Failed to generate questions'}), 500
 
         # Save questions to database with consistent key names
         saved_questions = []
         try:
             for q in questions:
-                if 'question' not in q:
+                if not all(key in q for key in key_mapping.values()):
                     continue
 
                 question = InterviewQuestion(
                     user_id=current_user.id,
-                    question=q.get('question', ''),
-                    sample_answer=q.get('sample_answer', 'Not provided'),  # Using consistent key name
-                    category=q.get('category', 'General'),
-                    difficulty=q.get('difficulty', 'Medium'),
-                    job_description=job_description[:500],  # Limit stored job description
-                    success_rate=random.randint(75, 95)  # Sample success rate
+                    question=q['question'],
+                    sample_answer=q['sample_answer'],
+                    category=q['category'],
+                    difficulty=q['difficulty'],
+                    job_description=job_description[:500],
+                    success_rate=random.randint(75, 95)
                 )
                 db.session.add(question)
                 saved_questions.append(question)
