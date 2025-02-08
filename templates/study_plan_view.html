@@ -422,7 +422,8 @@ async function startStudySession() {
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
 
         const result = await response.json();
@@ -432,6 +433,7 @@ async function startStudySession() {
             currentSessionId = result.session_id;
             startTime = new Date();
 
+            // Update UI elements
             const startBtn = document.getElementById('startSession');
             const endBtn = document.getElementById('endSession');
             const timerDisplay = document.getElementById('sessionTimer');
@@ -440,6 +442,8 @@ async function startStudySession() {
             if (endBtn) endBtn.classList.remove('d-none');
             if (timerDisplay) timerDisplay.classList.remove('d-none');
 
+            // Start timer
+            if (timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(updateTimer, 1000);
         } else {
             throw new Error(result.error || 'Failed to start study session');
@@ -467,7 +471,8 @@ async function endStudySession() {
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
 
         const result = await response.json();

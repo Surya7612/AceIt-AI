@@ -119,8 +119,12 @@ def start_study_session(plan_id):
         ).first()
 
         if active_session:
-            logging.warning(f"Active session already exists for plan {plan_id}")
-            return jsonify({'error': 'An active session already exists', 'session_id': active_session.id}), 200
+            logging.warning(f"Active session {active_session.id} already exists for plan {plan_id}")
+            return jsonify({
+                'success': True, 
+                'session_id': active_session.id,
+                'message': 'Resuming existing session'
+            })
 
         # Create new session
         try:
@@ -154,13 +158,26 @@ def end_study_session(plan_id, session_id):
         from models import StudySession
         session = StudySession.query.get_or_404(session_id)
 
-        if session.user_id != current_user.id:
+        # Verify ownership and plan association
+        if session.user_id != current_user.id or session.study_plan_id != plan_id:
             return jsonify({'error': 'Unauthorized'}), 403
 
-        session.end_time = datetime.utcnow()
-        db.session.commit()
+        if session.end_time:
+            return jsonify({'error': 'Session already ended'}), 400
 
-        return jsonify({'success': True})
+        # Calculate duration
+        session.end_time = datetime.utcnow()
+        duration = (session.end_time - session.start_time).total_seconds() / 60
+        session.duration_minutes = int(duration)
+
+        try:
+            db.session.commit()
+            return jsonify({'success': True})
+        except Exception as db_error:
+            logging.error(f"Database error ending session: {str(db_error)}")
+            db.session.rollback()
+            return jsonify({'error': 'Failed to end study session'}), 500
+
     except Exception as e:
         logging.error(f"Error ending study session: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -863,93 +880,89 @@ with app.app_context():
 
 @app.route('/study-plan-chat', methods=['POST'])
 @login_required
-def study_plan_chat():
-    """Handle chat interactions for study plans"""
+def handle_study_plan_chat():
+    """Handle chat messages in study plan context"""
     try:
-        from models import StudyPlan, ChatHistory
         data = request.get_json()
-        logging.info(f"Received chat request data: {data}")
-
         if not data:
-            logging.error("No JSON data received")
-            return jsonify({'error': 'No data provided', 'success': False}), 400
+            return jsonify({'error': 'No data provided'}), 400
 
         message = data.get('message')
         plan_id = data.get('plan_id')
 
-        if not message or not plan_id:
-            logging.error(f"Missing required fields. Got message: {message}, plan_id: {plan_id}")
-            return jsonify({'error': 'Message and plan_id are required', 'success': False}), 400
+        if not message:
+            return jsonify({'error': 'Message is required'}), 400
 
-        use_context = data.get('context', True)
+        logging.info(f"Received chat request data: {data}")
+        logging.info("Generating AI response")
 
-        # Get the study plan
-        study_plan = StudyPlan.query.get_or_404(plan_id)
+        # Get study plan context
+        study_plan = None
+        if plan_id:
+            from models import StudyPlan
+            study_plan = StudyPlan.query.get(plan_id)
+            if study_plan and study_plan.user_id != current_user.id:
+                return jsonify({'error': 'Unauthorized access to study plan'}), 403
 
-        # Verify ownership
-        if study_plan.user_id != current_user.id:
-            logging.warning(f"Unauthorized access attempt for plan {plan_id}")
-            return jsonify({'error': 'Unauthorized', 'success': False}), 403
-
-        # Get study plan content for context
+        # Generate response with context
         try:
-            plan_content = study_plan.get_content()
-            if not plan_content:
-                plan_content = {}
-        except Exception as e:
-            logging.error(f"Error parsing study plan content: {str(e)}")
-            plan_content = {}
-
-        # Create context from study plan content
-        context = f"""This is a study plan focused on: {study_plan.title}
+            context = None
+            if study_plan:
+                content = study_plan.get_content()
+                if content:
+                    context = f"""This is a study plan focused on: {study_plan.title}
 Difficulty Level: {study_plan.difficulty_level}
 Progress: {study_plan.progress}%
 
 Content from the study plan:
-"""
-        if 'summary' in plan_content:
-            context += f"\nSummary: {plan_content['summary']}"
-        if 'key_concepts' in plan_content:
-            concepts = [c.get('name', '') for c in plan_content.get('key_concepts', [])]
-            if concepts:
-                context += f"\nKey Concepts: {', '.join(concepts)}"
-        if 'sections' in plan_content:
-            sections = [s.get('title', '') for s in plan_content.get('sections', [])]
-            if sections:
-                context += "\nMain Topics:\n- " + "\n- ".join(sections)
 
-        # Generate response using AI helper
-        from ai_helper import chat_response
-        try:
-            logging.info("Generating AI response")
-            response = chat_response(
-                message,
-                context if use_context else None,
-                True,
-                current_user.id
+{json.dumps(content, indent=2)}"""
+
+            messages = [
+                {"role": "system", "content": "You are a helpful study assistant. "
+                 "As a tutor, reference relevant materials from the user's documents "
+                 "and provide detailed explanations. "}
+            ]
+
+            if context:
+                messages.append({"role": "system", "content": context})
+
+            messages.append({"role": "user", "content": message})
+
+            logging.debug(f"Sending chat request with tutor_mode={bool(context)}")
+            logging.debug(f"Context available: {bool(context)}")
+
+            response = openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=messages,
             )
+
+            ai_response = response.choices[0].message.content
 
             # Save chat history
-            chat_record = ChatHistory(
+            from models import ChatHistory
+            chat = ChatHistory(
                 user_id=current_user.id,
-                study_plan_id=plan_id,
                 question=message,
-                answer=response
+                answer=ai_response,
+                study_plan_id=plan_id if plan_id else None
             )
-            db.session.add(chat_record)
+            db.session.add(chat)
             db.session.commit()
-            logging.info("Successfully saved chat record")
 
             return jsonify({
                 'success': True,
-                'response': response
+                'response': ai_response
             })
 
         except Exception as ai_error:
             logging.error(f"AI response error: {str(ai_error)}")
             db.session.rollback()
-            return jsonify({'error': 'Failed to generate response', 'success': False}), 500
+            return jsonify({
+                'error': 'Failed to generate response',
+                'details': str(ai_error)
+            }), 500
 
     except Exception as e:
-        logging.error(f"Study plan chat error: {str(e)}")
-        return jsonify({'error': str(e), 'success': False}), 500
+        logging.error(f"Error in chat handler: {str(e)}")
+        return jsonify({'error': str(e)}), 500
