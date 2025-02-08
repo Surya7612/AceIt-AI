@@ -10,7 +10,7 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
     """Generate an optimized study schedule based on user preferences"""
     try:
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4",  # Using standard gpt-4 model
             messages=[
                 {
                     "role": "system",
@@ -134,7 +134,7 @@ def chat_response(message, context=None, tutor_mode=False, user_id=1):
         logging.debug(f"Context available: {bool(context)}")
 
         response = openai_client.chat.completions.create(
-            model="gpt-4o",  # Latest model
+            model="gpt-4",  # Using standard gpt-4 model
             messages=messages
         )
         return response.choices[0].message.content
@@ -154,7 +154,7 @@ def update_study_plan(plan_id, updates):
             return False
 
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4",
             messages=[
                 {
                     "role": "system",

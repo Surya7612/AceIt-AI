@@ -1,3 +1,4 @@
+<replit_final_file>
 import os
 import logging
 from typing import Optional, Dict, Any
@@ -35,7 +36,7 @@ class DocumentProcessor:
 
             # Generate structured content using OpenAI
             response = openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4",  # Using standard gpt-4 model
                 messages=[
                     {
                         "role": "system",
@@ -144,7 +145,7 @@ class DocumentProcessor:
         try:
             logger.debug("Generating structured content with OpenAI")
             response = openai_client.chat.completions.create(
-                model="gpt-4o",  # Latest model as of May 13, 2024
+                model="gpt-4",  # Latest model as of May 13, 2024
                 messages=[
                     {
                         "role": "system",
@@ -221,7 +222,7 @@ class DocumentProcessor:
 
             # Generate new structured content from combined documents
             response = openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4",
                 messages=[
                     {
                         "role": "system",

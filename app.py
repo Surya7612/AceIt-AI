@@ -132,7 +132,7 @@ Provide a detailed ATS analysis in this exact JSON format:
 }}"""
 
                 compatibility_response = openai_client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-4", # Changed to gpt-4
                     messages=[
                         {"role": "system", "content": "You are an expert ATS analyst specializing in technical roles."},
                         {"role": "user", "content": compatibility_prompt}
@@ -164,7 +164,7 @@ Generate exactly 5 questions."""
         logging.info("Sending request to OpenAI")
         try:
             response = openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4", # Changed to gpt-4
                 messages=[
                     {"role": "system", "content": "You are an expert interviewer generating questions."},
                     {"role": "user", "content": questions_prompt}
@@ -258,7 +258,7 @@ def test_openai():
         logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
 
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4",  # Using standard gpt-4 model
             messages=[
                 {"role": "user", "content": "Say 'OpenAI connection working!'"}
             ]
@@ -375,7 +375,7 @@ Respond ONLY with the JSON object, no additional text."""
         try:
             logging.info("Sending feedback request to OpenAI")
             response = openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4", # Changed to gpt-4
                 messages=[
                     {"role": "system", "content": "You are an expert interview assessor. You must return only valid JSON."},
                     {"role": "user", "content": feedback_prompt}
