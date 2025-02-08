@@ -115,7 +115,43 @@ def generate_interview_questions():
         client = OpenAI()
         logging.info("Initialized OpenAI client")
 
-        # Generate interview questions with optimized prompt
+        # Generate compatibility analysis if resume is provided
+        compatibility = None
+        if resume:
+            try:
+                compatibility_prompt = f"""Analyze the compatibility between this resume and job description:
+
+Resume:
+{resume[:1000]}
+
+Job Description:
+{job_description[:500]}
+
+Provide your analysis in this exact JSON format:
+{{
+    "compatibility_score": (number between 0-100),
+    "strengths": [list of 3-5 key matching strengths],
+    "gaps": [list of 2-3 areas for improvement]
+}}"""
+
+                compatibility_response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "You are an expert HR analyst."},
+                        {"role": "user", "content": compatibility_prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.7
+                )
+
+                compatibility = json.loads(compatibility_response.choices[0].message.content)
+                logging.info("Generated compatibility analysis")
+
+            except Exception as analysis_error:
+                logging.error(f"Error generating compatibility analysis: {str(analysis_error)}")
+                # Continue without compatibility analysis if it fails
+
+        # Generate interview questions
         questions_prompt = f"""Generate 5 interview questions based on this job description:
 
 {job_description[:500]}
@@ -192,7 +228,7 @@ Generate exactly 5 questions."""
             db.session.commit()
             logging.info(f"Successfully saved {len(saved_questions)} questions")
 
-            return jsonify({
+            response_data = {
                 'success': True,
                 'questions': [{
                     'id': q.id,
@@ -201,7 +237,12 @@ Generate exactly 5 questions."""
                     'difficulty': q.difficulty,
                     'success_rate': q.success_rate
                 } for q in saved_questions]
-            })
+            }
+
+            if compatibility:
+                response_data['compatibility'] = compatibility
+
+            return jsonify(response_data)
 
         except Exception as db_error:
             logging.error(f"Database error while saving questions: {str(db_error)}")

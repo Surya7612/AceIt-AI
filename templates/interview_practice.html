@@ -64,7 +64,7 @@
                                 <div class="spinner-border text-primary me-2" role="status">
                                     <span class="visually-hidden">Loading...</span>
                                 </div>
-                                <span>Generating interview questions...</span>
+                                <span>Analyzing job compatibility and generating questions...</span>
                             </div>
                             <div class="progress">
                                 <div class="progress-bar progress-bar-striped progress-bar-animated" 
@@ -81,22 +81,41 @@
                                 Questions generated successfully!
                             </div>
                         </div>
+
+                        <!-- Compatibility Details -->
+                        <div id="compatibilityDetails" style="display: none;" class="mt-4">
+                            <h5>Job Compatibility Analysis</h5>
+                            <div class="mb-3">
+                                <label class="form-label">Overall Match Score</label>
+                                <div class="progress">
+                                    <div id="compatibilityScore" class="progress-bar" role="progressbar" 
+                                         style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Key Strengths</h6>
+                                    <ul id="strengthsList" class="list-group">
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Areas for Development</h6>
+                                    <ul id="gapsList" class="list-group">
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Questions List -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="list-group" id="questionsList">
-            </div>
-        </div>
-    </div>
-
+    <!-- Practice Area with Questions List Side by Side -->
     <div class="row">
         <div class="col-md-8">
+            <!-- Practice Area -->
             <div class="card" id="practiceArea" style="display: none;">
                 <div class="card-header">
                     <h5 class="card-title mb-0" id="currentQuestion"></h5>
@@ -140,6 +159,12 @@
                 <div class="card-body">
                     <div id="feedbackContent"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Questions List on the right -->
+        <div class="col-md-4">
+            <div class="list-group" id="questionsList">
             </div>
         </div>
     </div>
@@ -202,8 +227,9 @@ function generateQuestions() {
     loadingSection.style.display = 'block';
     successSection.style.display = 'none';
 
-    // Clear existing questions
+    // Clear existing questions and hide compatibility details
     document.getElementById('questionsList').innerHTML = '';
+    document.getElementById('compatibilityDetails').style.display = 'none';
 
     fetch('/interview-practice/generate', {
         method: 'POST',
@@ -218,9 +244,13 @@ function generateQuestions() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Show success message
+            // Show success message and compatibility details if available
             loadingSection.style.display = 'none';
             successSection.style.display = 'block';
+
+            if (data.compatibility) {
+                updateCompatibilityDetails(data.compatibility);
+            }
 
             // Update questions list
             const questionsList = document.getElementById('questionsList');
@@ -256,6 +286,7 @@ function generateQuestions() {
 }
 
 function createQuestionElement(question) {
+    console.log('Creating element for question:', question);
     return `
         <button class="list-group-item list-group-item-action" onclick="showQuestion(${question.id})">
             <div class="d-flex w-100 justify-content-between">
@@ -271,6 +302,36 @@ function createQuestionElement(question) {
             ` : ''}
         </button>
     `;
+}
+
+function updateCompatibilityDetails(compatibilityData) {
+    const compatibilitySection = document.getElementById('compatibilityDetails');
+    const scoreBar = document.getElementById('compatibilityScore');
+    const strengthsList = document.getElementById('strengthsList');
+    const gapsList = document.getElementById('gapsList');
+
+    // Update score
+    const score = compatibilityData.compatibility_score;
+    scoreBar.style.width = `${score}%`;
+    scoreBar.setAttribute('aria-valuenow', score);
+    scoreBar.textContent = `${score}%`;
+
+    // Update strengths
+    strengthsList.innerHTML = compatibilityData.strengths
+        .map(strength => `<li class="list-group-item">
+            <i class="feather-check text-success me-2"></i>${strength}
+        </li>`)
+        .join('');
+
+    // Update gaps
+    gapsList.innerHTML = compatibilityData.gaps
+        .map(gap => `<li class="list-group-item">
+            <i class="feather-arrow-up-circle text-warning me-2"></i>${gap}
+        </li>`)
+        .join('');
+
+    // Show the section
+    compatibilitySection.style.display = 'block';
 }
 
 function showQuestion(questionId) {
@@ -353,6 +414,22 @@ function showFeedback(feedback) {
         </div>
     `;
 
+    if (feedback.confidence_score !== undefined) {
+        html += `
+            <div class="mb-3">
+                <h6>Speaking Confidence: ${feedback.confidence_score}/100</h6>
+                <div class="progress">
+                    <div class="progress-bar bg-info" role="progressbar" 
+                        style="width: ${feedback.confidence_score}%" 
+                        aria-valuenow="${feedback.confidence_score}" 
+                        aria-valuemin="0" 
+                        aria-valuemax="100">
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     feedbackContent.innerHTML = html;
     feedbackArea.style.display = 'block';
 }
@@ -417,7 +494,6 @@ function clearData() {
         alert('Failed to clear data');
     });
 }
-
 
 // Initialize everything when the page loads
 document.addEventListener('DOMContentLoaded', function() {
