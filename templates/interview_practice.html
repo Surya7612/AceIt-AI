@@ -328,12 +328,14 @@ function generateQuestions() {
     })
     .then(response => response.json())
     .then(data => {
+        console.log('Response from server:', data);
         if (data.success) {
             // Show success message and compatibility details if available
             loadingSection.style.display = 'none';
             successSection.style.display = 'block';
 
             if (data.compatibility) {
+                console.log('Updating compatibility details with:', data.compatibility);
                 updateCompatibilityDetails(data.compatibility);
             }
 
@@ -390,6 +392,7 @@ function createQuestionElement(question) {
 }
 
 function updateCompatibilityDetails(compatibilityData) {
+    console.log('Updating compatibility details with:', compatibilityData);
     const compatibilitySection = document.getElementById('compatibilityDetails');
 
     // Update score bars
@@ -419,7 +422,7 @@ function updateCompatibilityDetails(compatibilityData) {
     const strengthsList = document.getElementById('strengthsList');
     strengthsList.innerHTML = compatibilityData.strengths
         .map(strength => `<li class="list-group-item">
-            <i class="feather-check-circle text-success me-2"></i>${strength}
+            <i data-feather="check-circle" class="text-success me-2"></i>${strength}
         </li>`)
         .join('');
 
@@ -427,7 +430,7 @@ function updateCompatibilityDetails(compatibilityData) {
     const gapsList = document.getElementById('gapsList');
     gapsList.innerHTML = compatibilityData.gaps
         .map(gap => `<li class="list-group-item">
-            <i class="feather-alert-circle text-warning me-2"></i>${gap}
+            <i data-feather="alert-circle" class="text-warning me-2"></i>${gap}
         </li>`)
         .join('');
 
@@ -447,12 +450,13 @@ function updateCompatibilityDetails(compatibilityData) {
     const formatSuggestions = document.getElementById('formatSuggestions');
     formatSuggestions.innerHTML = compatibilityData.format_suggestions
         .map(suggestion => `<li class="list-group-item">
-            <i class="feather-info text-primary me-2"></i>${suggestion}
+            <i data-feather="info" class="text-primary me-2"></i>${suggestion}
         </li>`)
         .join('');
 
-    // Show the section
+    // Show the section and update icons
     compatibilitySection.style.display = 'block';
+    feather.replace();
 }
 
 function showQuestion(questionId) {
