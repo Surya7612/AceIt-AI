@@ -32,12 +32,12 @@ Create a comprehensive study plan that includes:
 4. Practice questions with detailed explanations
 5. Additional resources and references
 
-Format the response as a JSON object with the following structure:
+Your response MUST be in valid JSON format with the following structure:
 {
     "title": "Topic name",
     "summary": "Comprehensive overview",
     "difficulty_level": "beginner/intermediate/advanced",
-    "estimated_total_hours": number,
+    "estimated_total_hours": <number>,
     "key_concepts": [
         {
             "name": "Concept name",
@@ -47,14 +47,14 @@ Format the response as a JSON object with the following structure:
     ],
     "learning_path": [
         {
-            "day": number,
-            "duration_minutes": number,
+            "day": <number>,
+            "duration_minutes": <number>,
             "topics": ["Topic 1", "Topic 2"],
             "activities": [
                 {
                     "type": "study/practice/review",
                     "description": "Activity description",
-                    "duration_minutes": number
+                    "duration_minutes": <number>
                 }
             ]
         }
@@ -105,7 +105,8 @@ Requirements:
 3. Content should be specifically tailored for {topic} interview preparation
 4. Include a mix of theoretical concepts and practical examples
 5. Add practice questions that test different aspects of the topic
-6. Recommend additional resources for deeper learning"""
+6. Recommend additional resources for deeper learning
+7. IMPORTANT: Format your entire response as a valid JSON object following the structure specified above"""
 
         if has_materials:
             study_request += f"\nUse this additional context to customize the plan:\n{context}"
@@ -119,19 +120,22 @@ Requirements:
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=messages,
-            temperature=0.7,
-            response_format={"type": "json_object"}
+            temperature=0.7
         )
 
-        content = response.choices[0].message.content
-        schedule = json.loads(content)
-        logging.debug(f"Generated content: {json.dumps(schedule, indent=2)}")
-
-        return schedule
+        # Parse the response content as JSON
+        try:
+            content = response.choices[0].message.content
+            schedule = json.loads(content)
+            logging.debug(f"Generated content: {json.dumps(schedule, indent=2)}")
+            return schedule
+        except json.JSONDecodeError as je:
+            logging.error(f"Failed to parse OpenAI response as JSON: {str(je)}")
+            raise Exception("Failed to generate valid study schedule format")
 
     except Exception as e:
         logging.error(f"Failed to generate study schedule: {str(e)}")
-        raise Exception(f"Failed to generate study schedule: {str(e)}")
+        raise
 
 def get_relevant_context(query, user_id=1):
     """Retrieve relevant context from user's documents and study plans"""
