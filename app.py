@@ -32,6 +32,10 @@ def study_plan():
     """Render the study plans page with limit check for free users"""
     from models import StudyPlan
 
+    # Get all study plans for the user
+    study_plans = StudyPlan.query.filter_by(user_id=current_user.id).all()
+
+    # Only check limits for non-premium users
     if not current_user.is_premium:
         # Check if user has reached the daily limit
         today = datetime.utcnow().date()
@@ -44,7 +48,6 @@ def study_plan():
             flash('Free users are limited to 5 study plans per day. Upgrade to premium for unlimited access.', 'warning')
             return redirect(url_for('subscription.pricing'))
 
-    study_plans = StudyPlan.query.filter_by(user_id=current_user.id).all()
     return render_template('study_plan.html', study_plans=study_plans)
 
 @app.route('/documents')
