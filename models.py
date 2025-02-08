@@ -60,7 +60,7 @@ class StudyPlan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
-    category = db.Column(db.String(50), nullable=False, default='General')  # DSA, System Design, Behavioral, General
+    category = db.Column(db.String(50), nullable=False, default='General')
     content = db.Column(db.Text)  # JSON field for storing structured content
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
