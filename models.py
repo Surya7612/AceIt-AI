@@ -23,8 +23,7 @@ class User(UserMixin, db.Model):
     study_plans = db.relationship('StudyPlan', backref='user', lazy=True)
     documents = db.relationship('Document', backref='user', lazy=True)
     folders = db.relationship('Folder', backref='user', lazy=True)
-    study_sessions = db.relationship('StudySession', backref='user', lazy=True) #Added this line
-
+    study_sessions = db.relationship('StudySession', backref='user', lazy=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -97,18 +96,14 @@ class StudyPlan(db.Model):
     def update_study_time(self, duration_minutes):
         self.total_study_time += duration_minutes
 
-
 class StudySession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     study_plan_id = db.Column(db.Integer, db.ForeignKey('study_plan.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # Add user_id field
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     start_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     end_time = db.Column(db.DateTime)
     duration_minutes = db.Column(db.Integer)  # Duration in minutes
     notes = db.Column(db.Text)  # Optional session notes
-
-    # Add relationship to User
-    user = db.relationship('User', backref=db.backref('study_sessions', lazy=True))
 
     __table_args__ = (
         Index('idx_study_session_plan_start', 'study_plan_id', 'start_time'),
