@@ -175,6 +175,7 @@ Generate exactly 5 questions."""
                         question=q['question'],
                         category=q['category'],
                         difficulty=q['difficulty'],
+                        job_description=job_description[:500],  # Add job description
                         success_rate=random.randint(75, 95)
                     )
                     db.session.add(question)
