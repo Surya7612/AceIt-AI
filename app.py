@@ -739,24 +739,33 @@ def create_study_plan():
                 documents=[],
                 link=data.get('link', '')
             )
-            logging.info(f"Generated schedule: {json.dumps(schedule)}")
+            logging.info("Generated schedule successfully")
 
-            # Create study plan object
+            # Create study plan object with all required fields
             study_plan = StudyPlan(
                 user_id=current_user.id,
                 title=data['topic'],
-                content=json.dumps(schedule),
+                category='General',  # Default category
+                content=json.dumps(schedule),  # Store the AI-generated content
+                schedule=json.dumps({'daily_time': daily_time}),  # Store schedule-specific data
                 priority=priority,
                 daily_study_time=daily_time,
                 completion_target=completion_target,
-                difficulty_level=data['difficulty']
+                difficulty_level=data['difficulty'],
+                progress=0,  # Initialize progress
+                total_study_time=0  # Initialize study time
             )
             logging.info(f"Created study plan object: {study_plan.title}")
 
-            # Save to database
-            db.session.add(study_plan)
-            db.session.commit()
-            logging.info(f"Successfully saved study plan with ID: {study_plan.id}")
+            # Save to database with explicit error handling
+            try:
+                db.session.add(study_plan)
+                db.session.commit()
+                logging.info(f"Successfully saved study plan with ID: {study_plan.id}")
+            except Exception as db_error:
+                db.session.rollback()
+                logging.error(f"Database error while saving study plan: {str(db_error)}")
+                return jsonify({'error': 'Failed to save study plan to database', 'success': False}), 500
 
             return jsonify({
                 'success': True,
@@ -765,12 +774,7 @@ def create_study_plan():
 
         except ValueError as ve:
             logging.error(f"Value error while creating study plan: {str(ve)}")
-            db.session.rollback()
             return jsonify({'error': f'Invalid data format: {str(ve)}', 'success': False}), 400
-        except Exception as db_error:
-            logging.error(f"Database error while creating study plan: {str(db_error)}")
-            db.session.rollback()
-            return jsonify({'error': 'Failed to save study plan to database', 'success': False}), 500
 
     except Exception as e:
         logging.error(f"Error creating study plan: {str(e)}")
