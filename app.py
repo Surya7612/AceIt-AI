@@ -52,6 +52,8 @@ def interview_practice():
     questions = InterviewQuestion.query.filter_by(user_id=current_user.id).all()
     return render_template('interview_practice.html', questions=questions)
 
+@app.route('/interview-practice/generate', methods=['POST'])
+@login_required
 def generate_interview_questions():
     """Generate interview questions based on job description"""
     try:
@@ -74,31 +76,30 @@ def generate_interview_questions():
                     'premium_required': True
                 }), 403
 
-        try:
-            if not os.environ.get("OPENAI_API_KEY"):
-                logging.error("OpenAI API key is not set")
-                return jsonify({'error': 'OpenAI API key is not configured'}), 500
+        # First get existing practices to avoid FK constraint violation
+        existing_practices = InterviewPractice.query.join(InterviewQuestion).filter(
+            InterviewQuestion.user_id == current_user.id
+        ).all()
 
-            client = OpenAI()
-            logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
+        # Delete practices first
+        for practice in existing_practices:
+            db.session.delete(practice)
+        db.session.commit()
 
-            # First get existing practices to avoid FK constraint violation
-            existing_practices = InterviewPractice.query.join(InterviewQuestion).filter(
-                InterviewQuestion.user_id == current_user.id
-            ).all()
+        # Now safe to delete questions
+        InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
+        db.session.commit()
 
-            # Delete practices first
-            for practice in existing_practices:
-                db.session.delete(practice)
-            db.session.commit()
+        if not os.environ.get("OPENAI_API_KEY"):
+            logging.error("OpenAI API key is not set")
+            return jsonify({'error': 'OpenAI API key is not configured'}), 500
 
-            # Now safe to delete questions
-            InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
-            db.session.commit()
+        client = OpenAI()
+        logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
 
-            # Generate interview questions with optimized prompt
-            num_questions = 3 if not current_user.is_premium else 5
-            questions_prompt = f"""Generate exactly {num_questions} focused interview questions for this job. Format as:
+        # Generate interview questions with optimized prompt
+        num_questions = 3 if not current_user.is_premium else 5
+        questions_prompt = f"""Generate exactly {num_questions} focused interview questions for this job. Format as:
 
 1. Question: [brief question]
 Sample Answer: [concise answer]
@@ -107,92 +108,88 @@ Difficulty: [Easy/Medium/Hard]
 
 Job Description: {job_description[:500]}"""  # Limit job description length
 
-            start_time = datetime.utcnow()
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are a concise interviewer. Format exactly as shown."},
-                    {"role": "user", "content": questions_prompt}
-                ],
-                temperature=0.5,  # Reduced for faster responses
-                max_tokens=1000   # Limited tokens for faster response
-            )
-            end_time = datetime.utcnow()
+        start_time = datetime.utcnow()
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a concise interviewer. Format exactly as shown."},
+                {"role": "user", "content": questions_prompt}
+            ],
+            temperature=0.5,  # Reduced for faster responses
+            max_tokens=1000   # Limited tokens for faster response
+        )
+        end_time = datetime.utcnow()
 
-            logging.info(f"OpenAI API response time: {(end_time - start_time).total_seconds()} seconds")
+        logging.info(f"OpenAI API response time: {(end_time - start_time).total_seconds()} seconds")
 
-            content = response.choices[0].message.content
-            logging.debug(f"Questions response: {content[:200]}...")
+        content = response.choices[0].message.content
+        logging.debug(f"Questions response: {content[:200]}...")
 
-            questions = []
-            current_question = {}
+        questions = []
+        current_question = {}
 
-            # Parse the response
-            for line in content.split('\n'):
-                line = line.strip()
-                if not line:
+        # Parse the response
+        for line in content.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+
+            if line.startswith(('1.', '2.', '3.', '4.', '5.')):
+                if current_question:
+                    questions.append(current_question)
+                    current_question = {}
+                continue
+
+            for field in ['Question:', 'Sample Answer:', 'Category:', 'Difficulty:']:
+                if line.startswith(field):
+                    key = field.lower().replace(':', '').strip()
+                    value = line[len(field):].strip()
+                    current_question[key] = value
+                    break
+
+        if current_question:
+            questions.append(current_question)
+
+        if not questions:
+            logging.error("No questions were parsed from the response")
+            return jsonify({'error': 'Failed to generate questions'}), 500
+
+        # Save questions to database
+        saved_questions = []
+        try:
+            for q in questions:
+                if 'question' not in q:
                     continue
 
-                if line.startswith(('1.', '2.', '3.', '4.', '5.')):
-                    if current_question:
-                        questions.append(current_question)
-                        current_question = {}
-                    continue
+                question = InterviewQuestion(
+                    user_id=current_user.id,
+                    question=q.get('question', ''),
+                    sample_answer=q.get('sample answer', 'Not provided'),
+                    category=q.get('category', 'General'),
+                    difficulty=q.get('difficulty', 'Medium'),
+                    job_description=job_description[:500],  # Limit stored job description
+                    success_rate=random.randint(75, 95)  # Sample success rate
+                )
+                db.session.add(question)
+                saved_questions.append(question)
 
-                for field in ['Question:', 'Sample Answer:', 'Category:', 'Difficulty:']:
-                    if line.startswith(field):
-                        key = field.lower().replace(':', '').strip()
-                        value = line[len(field):].strip()
-                        current_question[key] = value
-                        break
+            db.session.commit()
+            logging.info(f"Successfully saved {len(saved_questions)} questions")
+        except Exception as db_error:
+            logging.error(f"Database error: {str(db_error)}")
+            db.session.rollback()
+            return jsonify({'error': 'Failed to save questions to database'}), 500
 
-            if current_question:
-                questions.append(current_question)
-
-            if not questions:
-                logging.error("No questions were parsed from the response")
-                return jsonify({'error': 'Failed to generate questions'}), 500
-
-            # Save questions to database
-            saved_questions = []
-            try:
-                for q in questions:
-                    if 'question' not in q:
-                        continue
-
-                    question = InterviewQuestion(
-                        user_id=current_user.id,
-                        question=q.get('question', ''),
-                        sample_answer=q.get('sample answer', 'Not provided'),
-                        category=q.get('category', 'General'),
-                        difficulty=q.get('difficulty', 'Medium'),
-                        job_description=job_description[:500],  # Limit stored job description
-                        success_rate=random.randint(75, 95)  # Sample success rate
-                    )
-                    db.session.add(question)
-                    saved_questions.append(question)
-
-                db.session.commit()
-                logging.info(f"Successfully saved {len(saved_questions)} questions")
-            except Exception as db_error:
-                logging.error(f"Database error: {str(db_error)}")
-                db.session.rollback()
-                return jsonify({'error': 'Failed to save questions to database'}), 500
-
-            return jsonify({
-                'success': True,
-                'questions': [{
-                    'id': q.id,
-                    'question': q.question,
-                    'category': q.category,
-                    'difficulty': q.difficulty,
-                    'success_rate': q.success_rate
-                } for q in saved_questions]
-            })
-
-        except Exception as api_error:
-            logging.error(f"OpenAI API error: {str(api_error)}")
-            return jsonify({'error': 'Failed to generate questions with OpenAI'}), 500
+        return jsonify({
+            'success': True,
+            'questions': [{
+                'id': q.id,
+                'question': q.question,
+                'category': q.category,
+                'difficulty': q.difficulty,
+                'success_rate': q.success_rate
+            } for q in saved_questions]
+        })
 
     except Exception as e:
         logging.error(f"General error in question generation: {str(e)}")
