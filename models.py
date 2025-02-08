@@ -78,7 +78,7 @@ class StudyPlan(db.Model):
                            backref=db.backref('study_plans', lazy=True))
     study_sessions = db.relationship('StudySession', backref='study_plan', lazy=True,
                                    cascade='all, delete-orphan')
-    chat_history = db.relationship('ChatHistory', backref='study_plan', lazy=True)
+    # chat_history relationship is now handled by backref in ChatHistory model
 
     def get_content(self):
         """Get parsed content data"""
@@ -151,16 +151,16 @@ class ChatHistory(db.Model):
     answer = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     related_document_id = db.Column(db.Integer, db.ForeignKey('document.id'))
-    related_study_plan_id = db.Column(db.Integer, db.ForeignKey('study_plan.id'))
-    study_plan_id = db.Column(db.Integer, db.ForeignKey('study_plan.id'))  # New field for study plan chat
+    study_plan_id = db.Column(db.Integer, db.ForeignKey('study_plan.id'))  # Consolidated study plan reference
 
-    # Add relationship to StudyPlan
-    study_plan = db.relationship('StudyPlan', foreign_keys=[study_plan_id],
+    # Define relationships with explicit foreign keys
+    study_plan = db.relationship('StudyPlan', 
+                                foreign_keys=[study_plan_id],
                                 backref=db.backref('chat_history', lazy=True))
 
     __table_args__ = (
         Index('idx_chat_history_user_created', 'user_id', 'created_at'),
-        Index('idx_chat_history_study_plan', 'study_plan_id'),  # New index for study plan chat queries
+        Index('idx_chat_history_study_plan', 'study_plan_id')
     )
 
 class Folder(db.Model):

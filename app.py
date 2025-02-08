@@ -868,12 +868,19 @@ def study_plan_chat():
     try:
         from models import StudyPlan, ChatHistory
         data = request.get_json()
+        logging.info(f"Received chat request data: {data}")
 
-        if not data or 'message' not in data or 'plan_id' not in data:
-            return jsonify({'error': 'Invalid request data'}), 400
+        if not data:
+            logging.error("No JSON data received")
+            return jsonify({'error': 'No data provided', 'success': False}), 400
 
-        message = data['message']
-        plan_id = data['plan_id']
+        message = data.get('message')
+        plan_id = data.get('plan_id')
+
+        if not message or not plan_id:
+            logging.error(f"Missing required fields. Got message: {message}, plan_id: {plan_id}")
+            return jsonify({'error': 'Message and plan_id are required', 'success': False}), 400
+
         use_context = data.get('context', True)
 
         # Get the study plan
@@ -881,31 +888,40 @@ def study_plan_chat():
 
         # Verify ownership
         if study_plan.user_id != current_user.id:
-            return jsonify({'error': 'Unauthorized'}), 403
+            logging.warning(f"Unauthorized access attempt for plan {plan_id}")
+            return jsonify({'error': 'Unauthorized', 'success': False}), 403
 
         # Get study plan content for context
         try:
-            plan_content = json.loads(study_plan.content) if study_plan.content else {}
-        except json.JSONDecodeError:
+            plan_content = study_plan.get_content()
+            if not plan_content:
+                plan_content = {}
+        except Exception as e:
+            logging.error(f"Error parsing study plan content: {str(e)}")
             plan_content = {}
 
         # Create context from study plan content
-        context = """Based on the study plan content:
-Summary: {}
-Key Concepts: {}
-""".format(
-            plan_content.get('summary', ''),
-            ', '.join(c.get('name', '') for c in plan_content.get('key_concepts', []))
-        )
+        context = f"""This is a study plan focused on: {study_plan.title}
+Difficulty Level: {study_plan.difficulty_level}
+Progress: {study_plan.progress}%
 
-        if plan_content.get('sections'):
-            context += "\nMain Topics:\n" + "\n".join(
-                s.get('title', '') for s in plan_content.get('sections', [])
-            )
+Content from the study plan:
+"""
+        if 'summary' in plan_content:
+            context += f"\nSummary: {plan_content['summary']}"
+        if 'key_concepts' in plan_content:
+            concepts = [c.get('name', '') for c in plan_content.get('key_concepts', [])]
+            if concepts:
+                context += f"\nKey Concepts: {', '.join(concepts)}"
+        if 'sections' in plan_content:
+            sections = [s.get('title', '') for s in plan_content.get('sections', [])]
+            if sections:
+                context += "\nMain Topics:\n- " + "\n- ".join(sections)
 
         # Generate response using AI helper
         from ai_helper import chat_response
         try:
+            logging.info("Generating AI response")
             response = chat_response(
                 message,
                 context if use_context else None,
@@ -922,6 +938,7 @@ Key Concepts: {}
             )
             db.session.add(chat_record)
             db.session.commit()
+            logging.info("Successfully saved chat record")
 
             return jsonify({
                 'success': True,
@@ -930,8 +947,9 @@ Key Concepts: {}
 
         except Exception as ai_error:
             logging.error(f"AI response error: {str(ai_error)}")
-            return jsonify({'error': 'Failed to generate response'}), 500
+            db.session.rollback()
+            return jsonify({'error': 'Failed to generate response', 'success': False}), 500
 
     except Exception as e:
         logging.error(f"Study plan chat error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'success': False}), 500

@@ -219,16 +219,19 @@
         <div class="modal-content bg-dark">
             <div class="modal-header border-bottom border-secondary">
                 <h5 class="modal-title" id="studyPlanChatModalLabel">Study Plan Assistant</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div id="chatMessages" class="chat-messages mb-3" style="height: 400px; overflow-y: auto;">
                     <!-- Chat messages will be inserted here -->
                 </div>
+                <div id="errorMessage" class="alert alert-danger d-none mb-3">
+                    <!-- Error messages will be shown here -->
+                </div>
                 <form id="chatForm" class="chat-form">
                     <div class="input-group">
                         <input type="text" id="messageInput" class="form-control bg-dark text-light" placeholder="Ask about your study plan...">
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary" id="sendButton">
                             <i data-feather="send"></i>
                         </button>
                     </div>
@@ -238,24 +241,20 @@
     </div>
 </div>
 
-<!-- Add Chat Button -->
-<div class="position-fixed bottom-0 end-0 m-4">
-    <button class="btn btn-lg btn-primary rounded-circle shadow" data-bs-toggle="modal" data-bs-target="#studyPlanChatModal">
-        <i data-feather="message-circle"></i>
-    </button>
-</div>
-
+<!-- Chat Styles -->
 <style>
 .chat-messages {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    padding: 1rem;
 }
 
 .chat-message {
     padding: 0.75rem;
     border-radius: 0.5rem;
     max-width: 80%;
+    word-wrap: break-word;
 }
 
 .chat-message.user {
@@ -271,6 +270,11 @@
 .chat-timestamp {
     font-size: 0.75rem;
     color: var(--bs-gray-500);
+    margin-top: 0.25rem;
+}
+
+.message-content {
+    white-space: pre-wrap;
 }
 </style>
 
@@ -511,6 +515,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatForm = document.getElementById('chatForm');
     const messageInput = document.getElementById('messageInput');
     const chatMessages = document.getElementById('chatMessages');
+    const sendButton = document.getElementById('sendButton');
+    const errorMessage = document.getElementById('errorMessage');
+
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.classList.remove('d-none');
+        setTimeout(() => {
+            errorMessage.classList.add('d-none');
+        }, 5000);
+    }
 
     function addMessage(message, isUser = false) {
         const messageDiv = document.createElement('div');
@@ -527,17 +541,12 @@ document.addEventListener('DOMContentLoaded', function() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    chatForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const message = messageInput.value.trim();
-        if (!message) return;
-
-        // Add user message
-        addMessage(message, true);
-        messageInput.value = '';
-
+    async function submitMessage(message) {
         try {
+            // Disable input and button while sending
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+
             const response = await fetch('/study-plan-chat', {
                 method: 'POST',
                 headers: {
@@ -556,12 +565,31 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 addMessage(data.response);
             } else {
-                addMessage('Sorry, I encountered an error processing your request.');
+                throw new Error(data.error || 'Failed to process your request');
             }
         } catch (error) {
             console.error('Error:', error);
-            addMessage('Sorry, there was an error sending your message.');
+            showError(error.message || 'Sorry, there was an error sending your message.');
+        } finally {
+            // Re-enable input and button
+            messageInput.disabled = false;
+            sendButton.disabled = false;
+            messageInput.focus();
         }
+    }
+
+    chatForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const message = messageInput.value.trim();
+        if (!message) return;
+
+        // Add user message
+        addMessage(message, true);
+        messageInput.value = '';
+
+        // Submit message
+        await submitMessage(message);
     });
 
     // Initialize Feather icons for new elements
@@ -569,5 +597,5 @@ document.addEventListener('DOMContentLoaded', function() {
         feather.replace();
     }
 });
-</script>
+
 {% endblock %}
