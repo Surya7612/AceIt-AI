@@ -72,7 +72,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "gunicorn main:app --bind 0.0.0.0:5000 --workers 4 --log-level debug"
+args = "python main.py"
 waitForPort = 5000
 
 [[ports]]
