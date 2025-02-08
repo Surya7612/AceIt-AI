@@ -1,3 +1,4 @@
+```
 ├── app/
 │   ├── app.py                 # Main application file
 │   ├── auth.py               # Authentication routes and logic
@@ -19,6 +20,7 @@
 ├── main.py                # Application entry point
 ├── pyproject.toml         # Python dependencies
 └── README.md             # Project documentation
+```
 ```
 
 ## Tech Stack
