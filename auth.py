@@ -3,14 +3,41 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
 from models import User, db
 from email_validator import validate_email, EmailNotValidError
+import re
 
 auth = Blueprint('auth', __name__)
+
+def validate_password(password):
+    """
+    Validate password complexity requirements:
+    - At least 8 characters
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one number
+    - At least one special character
+    """
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter"
+
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter"
+
+    if not re.search(r"\d", password):
+        return False, "Password must contain at least one number"
+
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return False, "Password must contain at least one special character"
+
+    return True, None
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
-    
+
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
@@ -21,7 +48,7 @@ def login():
             login_user(user, remember=remember)
             next_page = request.args.get('next')
             return redirect(next_page or url_for('index'))
-        
+
         flash('Please check your login details and try again.')
         return redirect(url_for('auth.login'))
 
@@ -31,7 +58,7 @@ def login():
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
-    
+
     if request.method == 'POST':
         email = request.form.get('email')
         username = request.form.get('username')
@@ -52,6 +79,12 @@ def register():
         # Check if username already exists
         if User.query.filter_by(username=username).first():
             flash('Username already exists.')
+            return redirect(url_for('auth.register'))
+
+        # Validate password complexity
+        is_valid, error_message = validate_password(password)
+        if not is_valid:
+            flash(error_message)
             return redirect(url_for('auth.register'))
 
         # Create new user
@@ -84,6 +117,6 @@ def admin_users():
     if not current_user.is_admin:
         flash('Access denied.')
         return redirect(url_for('index'))
-    
+
     users = User.query.all()
     return render_template('auth/admin_users.html', users=users)
