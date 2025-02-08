@@ -4,12 +4,14 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from flask_login import LoginManager
 from openai import OpenAI
+from flask_wtf.csrf import CSRFProtect
 
 class Base(DeclarativeBase):
     pass
 
 db = SQLAlchemy(model_class=Base)
 login_manager = LoginManager()
+csrf = CSRFProtect()
 
 # Initialize OpenAI client once for the entire application
 openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -28,6 +30,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_key")
 # Initialize extensions
 db.init_app(app)
 login_manager.init_app(app)
+csrf.init_app(app)  # Initialize CSRF protection
 login_manager.login_view = 'auth.login'
 
 @login_manager.user_loader
