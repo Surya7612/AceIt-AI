@@ -229,22 +229,25 @@ def add_to_folder(folder_id):
             return jsonify({'error': 'Invalid request data'}), 400
 
         item_id = int(data['id'])
+
         if data['type'] == 'study_plan':
             item = StudyPlan.query.get_or_404(item_id)
+            if item.user_id != current_user.id:
+                return jsonify({'error': 'Unauthorized'}), 403
+            folder.study_plans.append(item)
         elif data['type'] == 'document':
             item = Document.query.get_or_404(item_id)
+            if item.user_id != current_user.id:
+                return jsonify({'error': 'Unauthorized'}), 403
+            folder.documents.append(item)
         else:
             return jsonify({'error': 'Invalid item type'}), 400
 
-        if item.user_id != current_user.id:
-            return jsonify({'error': 'Unauthorized'}), 403
-
-        folder.items.append(item)
         db.session.commit()
-
         return jsonify({'success': True})
     except Exception as e:
         logging.error(f"Error adding item to folder: {str(e)}")
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/interview-practice')

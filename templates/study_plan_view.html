@@ -11,19 +11,33 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <button id="deleteStudyPlan" class="btn btn-sm btn-outline-danger" 
-                            onclick="deleteStudyPlan({{ study_plan.id }})">
+                            data-plan-id="{{ study_plan.id }}">
                         <i data-feather="trash-2"></i> Delete Plan
                     </button>
                     <div id="studySessionControls">
-                        <button id="startSession" class="btn btn-sm btn-success" onclick="startStudySession()">
+                        <button id="startSession" class="btn btn-sm btn-success">
                             <i data-feather="play"></i> Start Session
                         </button>
-                        <button id="endSession" class="btn btn-sm btn-warning d-none" onclick="endStudySession()">
+                        <button id="endSession" class="btn btn-sm btn-warning d-none">
                             <i data-feather="square"></i> End Session
                         </button>
                         <div id="sessionTimer" class="d-none">
                             Time: <span id="timerDisplay">00:00:00</span>
                         </div>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="folderDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i data-feather="folder-plus"></i> Add to Folder
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="folderDropdown">
+                            {% for folder in folders %}
+                            <li><a class="dropdown-item" href="#" onclick="addToFolder({{ folder.id }}, 'study_plan', {{ study_plan.id }})">{{ folder.name }}</a></li>
+                            {% endfor %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#newFolderModal">
+                                <i data-feather="plus"></i> New Folder
+                            </a></li>
+                        </ul>
                     </div>
                     <a href="{{ url_for('study_plan') }}" class="btn btn-sm btn-outline-secondary">
                         <i data-feather="arrow-left"></i> Back to Study Plans
@@ -180,6 +194,25 @@
     </div>
 </div>
 
+<!-- New Folder Modal -->
+<div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newFolderModalLabel">Create New Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control" id="newFolderName" placeholder="Enter folder name">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createNewFolder()">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let currentSessionId = null;
 let startTime = null;
@@ -197,14 +230,45 @@ function updateTimer() {
     document.getElementById('timerDisplay').textContent = `${hours}:${minutes}:${seconds}`;
 }
 
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Delete button event listener
+    const deleteBtn = document.getElementById('deleteStudyPlan');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', function() {
+            const planId = this.getAttribute('data-plan-id');
+            deleteStudyPlan(planId);
+        });
+    }
+
+    // Start session button event listener
+    const startBtn = document.getElementById('startSession');
+    if (startBtn) {
+        startBtn.addEventListener('click', startStudySession);
+    }
+
+    // End session button event listener
+    const endBtn = document.getElementById('endSession');
+    if (endBtn) {
+        endBtn.addEventListener('click', endStudySession);
+    }
+
+    // Initialize Feather icons
+    feather.replace();
+});
+
 async function startStudySession() {
     try {
         const response = await fetch(`/study-plan/{{ study_plan.id }}/session/start`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
             }
         });
+
+        if (!response.ok) throw new Error('Network response was not ok');
+
         const result = await response.json();
 
         if (result.success) {
@@ -215,7 +279,7 @@ async function startStudySession() {
             document.getElementById('sessionTimer').classList.remove('d-none');
             timerInterval = setInterval(updateTimer, 1000);
         } else {
-            alert('Failed to start study session');
+            alert(result.error || 'Failed to start study session');
         }
     } catch (error) {
         console.error('Error:', error);
@@ -230,9 +294,13 @@ async function endStudySession() {
         const response = await fetch(`/study-plan/{{ study_plan.id }}/session/${currentSessionId}/end`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
             }
         });
+
+        if (!response.ok) throw new Error('Network response was not ok');
+
         const result = await response.json();
 
         if (result.success) {
@@ -244,7 +312,7 @@ async function endStudySession() {
             startTime = null;
             location.reload();
         } else {
-            alert('Failed to end study session');
+            alert(result.error || 'Failed to end study session');
         }
     } catch (error) {
         console.error('Error:', error);
@@ -261,14 +329,19 @@ async function deleteStudyPlan(planId) {
         const response = await fetch(`/study-plan/${planId}/delete`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
             }
         });
 
-        if (response.ok) {
+        if (!response.ok) throw new Error('Network response was not ok');
+
+        const result = await response.json();
+
+        if (result.success) {
             window.location.href = '/study-plan';
         } else {
-            alert('Failed to delete study plan');
+            alert(result.error || 'Failed to delete study plan');
         }
     } catch (error) {
         console.error('Error:', error);
@@ -276,9 +349,65 @@ async function deleteStudyPlan(planId) {
     }
 }
 
-// Initialize Feather icons after dynamic content is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    feather.replace();
-});
+async function createNewFolder() {
+    const folderName = document.getElementById('newFolderName').value;
+    if (!folderName) {
+        alert('Please enter a folder name');
+        return;
+    }
+
+    try {
+        const response = await fetch('/folders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ name: folderName })
+        });
+
+        if (!response.ok) throw new Error('Network response was not ok');
+
+        const result = await response.json();
+
+        if (result.success) {
+            location.reload();
+        } else {
+            alert(result.error || 'Failed to create folder');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to create folder');
+    }
+}
+
+async function addToFolder(folderId, itemType, itemId) {
+    try {
+        const response = await fetch(`/folders/${folderId}/items`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                type: itemType,
+                id: itemId
+            })
+        });
+
+        if (!response.ok) throw new Error('Network response was not ok');
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert('Successfully added to folder');
+        } else {
+            alert(result.error || 'Failed to add to folder');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to add to folder');
+    }
+}
 </script>
 {% endblock %}

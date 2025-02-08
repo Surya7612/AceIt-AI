@@ -6,7 +6,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">My Folders</h5>
-                <button class="btn btn-primary btn-sm" onclick="createFolder()">
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createFolderModal">
                     <i data-feather="folder-plus"></i> New Folder
                 </button>
             </div>
@@ -15,10 +15,15 @@
                     <div class="col-md-4">
                         <div class="folders-list" id="foldersList">
                             {% for folder in folders %}
-                            <div class="folder-item" data-folder-id="{{ folder.id }}" ondrop="dropItem(event)" ondragover="allowDrop(event)">
-                                <i data-feather="folder"></i>
-                                <span>{{ folder.name }}</span>
-                                <small class="text-muted d-block">
+                            <div class="folder-item p-3 mb-2 bg-light rounded" 
+                                 data-folder-id="{{ folder.id }}" 
+                                 ondrop="dropItem(event)" 
+                                 ondragover="allowDrop(event)">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i data-feather="folder"></i>
+                                    <span>{{ folder.name }}</span>
+                                </div>
+                                <small class="text-muted d-block mt-1">
                                     {{ folder.study_plans|length }} plans, {{ folder.documents|length }} docs
                                 </small>
                             </div>
@@ -30,19 +35,59 @@
                             <h6 class="mb-3">Study Plans</h6>
                             <div class="list-group mb-4">
                                 {% for plan in study_plans %}
-                                <div class="list-group-item" draggable="true" ondragstart="dragStart(event)" data-item-type="study_plan" data-item-id="{{ plan.id }}">
-                                    <h6 class="mb-1">{{ plan.title }}</h6>
-                                    <small class="text-muted">Created {{ plan.created_at.strftime('%Y-%m-%d') }}</small>
+                                <div class="list-group-item draggable-item" 
+                                     draggable="true" 
+                                     ondragstart="dragStart(event)" 
+                                     data-item-type="study_plan" 
+                                     data-item-id="{{ plan.id }}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ plan.title }}</h6>
+                                            <small class="text-muted">Created {{ plan.created_at.strftime('%Y-%m-%d') }}</small>
+                                        </div>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-link text-muted" type="button" data-bs-toggle="dropdown">
+                                                <i data-feather="more-vertical"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                {% for folder in folders %}
+                                                <li><a class="dropdown-item" href="#" onclick="addToFolder({{ folder.id }}, 'study_plan', {{ plan.id }})">
+                                                    Add to {{ folder.name }}
+                                                </a></li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
                                 {% endfor %}
                             </div>
-                            
+
                             <h6 class="mb-3">Documents</h6>
                             <div class="list-group">
                                 {% for doc in documents %}
-                                <div class="list-group-item" draggable="true" ondragstart="dragStart(event)" data-item-type="document" data-item-id="{{ doc.id }}">
-                                    <h6 class="mb-1">{{ doc.original_filename }}</h6>
-                                    <small class="text-muted">Uploaded {{ doc.created_at.strftime('%Y-%m-%d') }}</small>
+                                <div class="list-group-item draggable-item" 
+                                     draggable="true" 
+                                     ondragstart="dragStart(event)" 
+                                     data-item-type="document" 
+                                     data-item-id="{{ doc.id }}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ doc.original_filename }}</h6>
+                                            <small class="text-muted">Uploaded {{ doc.created_at.strftime('%Y-%m-%d') }}</small>
+                                        </div>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-link text-muted" type="button" data-bs-toggle="dropdown">
+                                                <i data-feather="more-vertical"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                {% for folder in folders %}
+                                                <li><a class="dropdown-item" href="#" onclick="addToFolder({{ folder.id }}, 'document', {{ doc.id }})">
+                                                    Add to {{ folder.name }}
+                                                </a></li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
                                 {% endfor %}
                             </div>
@@ -80,28 +125,30 @@
 {% block scripts %}
 <script>
     // Folder creation
-    function createFolder() {
-        const modal = new bootstrap.Modal(document.getElementById('createFolderModal'));
-        modal.show();
-    }
-
     function submitFolder() {
         const name = document.getElementById('folderName').value;
-        if (!name) return;
+        if (!name) {
+            alert('Please enter a folder name');
+            return;
+        }
 
         fetch('/folders', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
             },
             body: JSON.stringify({ name })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 location.reload();
             } else {
-                alert('Error creating folder: ' + data.error);
+                alert('Error creating folder: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
@@ -112,37 +159,58 @@
 
     // Drag and drop functionality
     function dragStart(event) {
-        const item = event.target;
-        event.dataTransfer.setData('itemType', item.dataset.itemType);
-        event.dataTransfer.setData('itemId', item.dataset.itemId);
+        event.dataTransfer.setData('itemType', event.target.dataset.itemType);
+        event.dataTransfer.setData('itemId', event.target.dataset.itemId);
+        event.target.classList.add('dragging');
+    }
+
+    function dragEnd(event) {
+        event.target.classList.remove('dragging');
     }
 
     function allowDrop(event) {
         event.preventDefault();
+        const folderItem = event.currentTarget;
+        folderItem.classList.add('drag-over');
+    }
+
+    function dragLeave(event) {
+        event.currentTarget.classList.remove('drag-over');
     }
 
     function dropItem(event) {
         event.preventDefault();
+        const folderItem = event.currentTarget;
+        folderItem.classList.remove('drag-over');
+
         const itemType = event.dataTransfer.getData('itemType');
         const itemId = event.dataTransfer.getData('itemId');
-        const folderId = event.target.closest('.folder-item').dataset.folderId;
+        const folderId = folderItem.dataset.folderId;
 
+        addToFolder(folderId, itemType, itemId);
+    }
+
+    function addToFolder(folderId, itemType, itemId) {
         fetch(`/folders/${folderId}/items`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
             },
             body: JSON.stringify({
                 type: itemType,
                 id: itemId
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 location.reload();
             } else {
-                alert('Error moving item: ' + data.error);
+                alert('Error moving item: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
@@ -150,5 +218,41 @@
             alert('Failed to move item');
         });
     }
+
+    // Initialize drag and drop event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        const draggableItems = document.querySelectorAll('.draggable-item');
+        draggableItems.forEach(item => {
+            item.addEventListener('dragend', dragEnd);
+        });
+
+        const folderItems = document.querySelectorAll('.folder-item');
+        folderItems.forEach(folder => {
+            folder.addEventListener('dragleave', dragLeave);
+        });
+
+        // Initialize Feather icons
+        feather.replace();
+    });
+
+    // Add custom styles for drag and drop
+    const style = document.createElement('style');
+    style.textContent = `
+        .draggable-item {
+            cursor: move;
+        }
+        .draggable-item.dragging {
+            opacity: 0.5;
+        }
+        .folder-item {
+            transition: background-color 0.2s;
+            border: 2px solid transparent;
+        }
+        .folder-item.drag-over {
+            background-color: var(--bs-light) !important;
+            border-color: var(--bs-primary);
+        }
+    `;
+    document.head.appendChild(style);
 </script>
 {% endblock %}
