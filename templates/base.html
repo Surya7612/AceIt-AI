@@ -213,67 +213,84 @@
         // Initialize Feather icons
         document.addEventListener('DOMContentLoaded', function() {
             feather.replace();
-        });
 
-        // Chat functionality
-        function toggleChat() {
+            // Chat functionality - Only initialize if elements exist
+            const chatInput = document.getElementById('chatInput');
             const chatWindow = document.getElementById('chatWindow');
-            chatWindow.classList.toggle('active');
-        }
 
-        function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-            if (!message) return;
-
-            // Add user message
-            addMessage(message, 'user');
-            input.value = '';
-
-            // Show typing indicator
-            document.getElementById('chatTyping').classList.add('active');
-
-            // Get tutor mode status
-            const tutorMode = document.getElementById('tutorMode').checked;
-
-            // Send to backend
-            fetch('/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                    message: message,
-                    tutor_mode: tutorMode
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Hide typing indicator
-                document.getElementById('chatTyping').classList.remove('active');
-                addMessage(data.response, 'assistant');
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('chatTyping').classList.remove('active');
-                addMessage('Sorry, there was an error processing your request.', 'assistant');
-            });
-        }
-
-        function addMessage(text, type) {
-            const messagesDiv = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${type}`;
-            messageDiv.textContent = text;
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        // Handle enter key in chat input
-        document.getElementById('chatInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
+            if (chatInput) {
+                chatInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        sendMessage();
+                    }
+                });
             }
+
+            window.toggleChat = function() {
+                if (chatWindow) {
+                    chatWindow.classList.toggle('active');
+                }
+            };
+
+            window.sendMessage = function() {
+                const input = document.getElementById('chatInput');
+                if (!input) return;
+
+                const message = input.value.trim();
+                if (!message) return;
+
+                // Add user message
+                addMessage(message, 'user');
+                input.value = '';
+
+                // Show typing indicator
+                const typingIndicator = document.getElementById('chatTyping');
+                if (typingIndicator) {
+                    typingIndicator.classList.add('active');
+                }
+
+                // Get tutor mode status
+                const tutorMode = document.getElementById('tutorMode');
+                const tutorModeEnabled = tutorMode ? tutorMode.checked : false;
+
+                // Send to backend
+                fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        message: message,
+                        tutor_mode: tutorModeEnabled
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Hide typing indicator
+                    if (typingIndicator) {
+                        typingIndicator.classList.remove('active');
+                    }
+                    addMessage(data.response, 'assistant');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    if (typingIndicator) {
+                        typingIndicator.classList.remove('active');
+                    }
+                    addMessage('Sorry, there was an error processing your request.', 'assistant');
+                });
+            };
+
+            window.addMessage = function(text, type) {
+                const messagesDiv = document.getElementById('chatMessages');
+                if (!messagesDiv) return;
+
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type}`;
+                messageDiv.textContent = text;
+                messagesDiv.appendChild(messageDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            };
         });
     </script>
     {% block scripts %}{% endblock %}
