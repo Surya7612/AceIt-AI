@@ -1,0 +1,100 @@
+Error starting session: 
+Error {}
+
+at t.value (https://b40f896e-99dd-40e4-942d-65f3b41c5fc7-00-2txik1rig2ayv.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://b40f896e-99dd-40e4-942d-65f3b41c5fc7-00-2txik1rig2ayv.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://b40f896e-99dd-40e4-942d-65f3b41c5fc7-00-2txik1rig2ayv.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://b40f896e-99dd-40e4-942d-65f3b41c5fc7-00-2txik1rig2ayv.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+Error: 
+Error {}
+message: "Failed to generate response"
+stack: "Error: Failed to generate response↵ at submitMessage (https://b40f896e-99dd-40e4-942d-65f3b41c5fc7-00-2txik1rig2ayv.picard.replit.dev/study-plan/37:594:23)↵ at async HTMLFormElement.<anonymous> (https://b40f896e-99dd-40e4-942d-65f3b41c5fc7-00-2txik1rig2ayv.picard.replit.dev/study-plan/37:619:13)"
+get stack: ƒ ()
+length: 0
+name: ""
+[[Prototype]]: ƒ ()
+apply: ƒ apply()
+arguments: "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"
+get arguments: ƒ ()
+set arguments: ƒ ()
+bind: ƒ bind()
+call: ƒ call()
+caller: "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"
+get caller: ƒ ()
+set caller: ƒ ()
+constructor: ƒ Function()
+length: 0
+name: ""
+toString: ƒ ()
+Symbol(Symbol.hasInstance): undefined
+[[Prototype]]: Object
+set stack: ƒ ()
+length: 1
+name: ""
+[[Prototype]]: ƒ ()
+apply: ƒ apply()
+arguments: "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"
+get arguments: ƒ ()
+set arguments: ƒ ()
+bind: ƒ bind()
+call: ƒ call()
+caller: "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"
+get caller: ƒ ()
+length: 0
+name: ""
+[[Prototype]]: ƒ ()
+apply: ƒ apply()
+arguments: "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"
+get arguments: ƒ ()
+set arguments: ƒ ()
+bind: ƒ bind()
+call: ƒ call()
+caller: "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"
+get caller: ƒ ()
+set caller: ƒ ()
+constructor: ƒ Function()
+length: 0
+name: ""
+toString: ƒ ()
+Symbol(Symbol.hasInstance): undefined
+[[Prototype]]: Object
+set caller: ƒ ()
+length: 0
+name: ""
+[[Prototype]]: ƒ ()
+constructor: ƒ Function()
+length: 1
+name: "Function"
+prototype: ƒ ()
+[[Prototype]]: ƒ ()
+length: 0
+name: ""
+toString: ƒ ()
+arguments: null
+caller: null
+length: 0
+name: ""
+prototype: Object
+[[Prototype]]: ƒ ()
+Symbol(Symbol.hasInstance): undefined
+[[Prototype]]: Object
+constructor: ƒ Function()
+hasOwnProperty: ƒ hasOwnProperty()
+isPrototypeOf: ƒ isPrototypeOf()
+propertyIsEnumerable: ƒ propertyIsEnumerable()
+toLocaleString: ƒ toLocaleString()
+toString: ƒ ()
+valueOf: ƒ valueOf()
+__defineGetter__: ƒ __defineGetter__()
+__defineSetter__: ƒ __defineSetter__()
+__lookupGetter__: ƒ __lookupGetter__()
+__lookupSetter__: ƒ __lookupSetter__()
+__proto__: ƒ ()
+get __proto__: ƒ get __proto__()
+set __proto__: ƒ set __proto__()
+[[Prototype]]: Object
+constructor: ƒ Error()
+message: "Failed to generate response"
+name: "Error"
+toString: ƒ toString()
+[[Prototype]]: Object
