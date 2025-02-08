@@ -1,20 +1,15 @@
 import os
-from openai import OpenAI
-from cache_helper import cache_data, get_cached_data
-from models import Document, StudyPlan
 import json
 import logging
 from datetime import datetime, timedelta
-
-# the newest OpenAI model is "gpt-4o" which was released May 13, 2024
-# do not change this unless explicitly requested by the user
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-openai = OpenAI(api_key=OPENAI_API_KEY)
+from extensions import openai_client
+from cache_helper import cache_data, get_cached_data
+from models import Document, StudyPlan
 
 def generate_study_schedule(topic, priority, daily_time, completion_date, difficulty, goals):
     """Generate an optimized study schedule based on user preferences"""
     try:
-        response = openai.chat.completions.create(
+        response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {
@@ -138,7 +133,7 @@ def chat_response(message, context=None, tutor_mode=False, user_id=1):
         logging.debug(f"Sending chat request with tutor_mode={tutor_mode}")
         logging.debug(f"Context available: {bool(context)}")
 
-        response = openai.chat.completions.create(
+        response = openai_client.chat.completions.create(
             model="gpt-4o",  # Latest model
             messages=messages
         )
@@ -158,7 +153,7 @@ def update_study_plan(plan_id, updates):
         if not current_schedule:
             return False
 
-        response = openai.chat.completions.create(
+        response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {

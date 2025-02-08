@@ -5,8 +5,7 @@ import json
 from datetime import datetime
 from flask import request, jsonify, render_template, flash, redirect, url_for
 from werkzeug.utils import secure_filename
-from openai import OpenAI
-from extensions import app, db
+from extensions import app, db, openai_client  # Import the shared client
 from auth import auth as auth_blueprint
 from flask_login import login_required, current_user
 from subscription import subscription as subscription_blueprint, premium_required
@@ -108,13 +107,6 @@ def generate_interview_questions():
             db.session.rollback()
             return jsonify({'error': 'Database error during cleanup', 'success': False}), 500
 
-        if not os.environ.get("OPENAI_API_KEY"):
-            logging.error("OpenAI API key is not set")
-            return jsonify({'error': 'OpenAI API key is not configured', 'success': False}), 500
-
-        client = OpenAI()
-        logging.info("Initialized OpenAI client")
-
         # Generate compatibility analysis if resume is provided
         compatibility = None
         if resume:
@@ -137,18 +129,10 @@ Provide a detailed ATS analysis in this exact JSON format:
     "key_matches": [list of 4-5 important keywords found in both],
     "missing_keywords": [list of 3-4 important keywords from job description not found in resume],
     "format_suggestions": [list of 2-3 ATS-friendly formatting suggestions if any]
-}}
+}}"""
 
-Base the analysis on standard ATS criteria:
-- Keyword matching and frequency
-- Skills alignment
-- Experience relevance
-- Education requirements
-- Technical qualifications
-- Industry-specific terminology"""
-
-                compatibility_response = client.chat.completions.create(
-                    model="gpt-4",
+                compatibility_response = openai_client.chat.completions.create(
+                    model="gpt-4o",
                     messages=[
                         {"role": "system", "content": "You are an expert ATS analyst specializing in technical roles."},
                         {"role": "user", "content": compatibility_prompt}
@@ -179,8 +163,8 @@ Generate exactly 5 questions."""
 
         logging.info("Sending request to OpenAI")
         try:
-            response = client.chat.completions.create(
-                model="gpt-4",
+            response = openai_client.chat.completions.create(
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are an expert interviewer generating questions."},
                     {"role": "user", "content": questions_prompt}
@@ -271,11 +255,10 @@ def test_openai():
     """Test OpenAI API connection"""
     try:
         logging.info("Testing OpenAI API connection")
-        client = OpenAI()
         logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
 
-        response = client.chat.completions.create(
-            model="gpt-4",
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
             messages=[
                 {"role": "user", "content": "Say 'OpenAI connection working!'"}
             ]
@@ -312,14 +295,6 @@ def submit_answer(question_id):
     try:
         from models import InterviewPractice, InterviewQuestion
         logging.info("Starting answer submission process")
-
-        # Initialize OpenAI client at the start
-        if not os.environ.get("OPENAI_API_KEY"):
-            logging.error("OpenAI API key is not set")
-            return jsonify({'error': 'OpenAI API key is not configured'}), 500
-
-        client = OpenAI()
-        logging.debug(f"OpenAI API Key present: {bool(os.environ.get('OPENAI_API_KEY'))}")
 
         # Get the question
         question = InterviewQuestion.query.get_or_404(question_id)
@@ -369,7 +344,7 @@ def submit_answer(question_id):
             # Transcribe audio from media file
             try:
                 with open(filepath, "rb") as audio_file:
-                    transcript = client.audio.transcriptions.create(
+                    transcript = openai_client.audio.transcriptions.create(
                         model="whisper-1",
                         file=audio_file
                     )
@@ -399,8 +374,8 @@ Respond ONLY with the JSON object, no additional text."""
 
         try:
             logging.info("Sending feedback request to OpenAI")
-            response = client.chat.completions.create(
-                model="gpt-4",
+            response = openai_client.chat.completions.create(
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are an expert interview assessor. You must return only valid JSON."},
                     {"role": "user", "content": feedback_prompt}
