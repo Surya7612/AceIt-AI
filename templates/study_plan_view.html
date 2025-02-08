@@ -227,38 +227,50 @@ function updateTimer() {
     const minutes = diff.getUTCMinutes().toString().padStart(2, '0');
     const seconds = diff.getUTCSeconds().toString().padStart(2, '0');
 
-    document.getElementById('timerDisplay').textContent = `${hours}:${minutes}:${seconds}`;
+    const timerDisplay = document.getElementById('timerDisplay');
+    if (timerDisplay) {
+        timerDisplay.textContent = `${hours}:${minutes}:${seconds}`;
+    }
 }
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', function() {
-    // Delete button event listener
+    // Initialize buttons
     const deleteBtn = document.getElementById('deleteStudyPlan');
+    const startBtn = document.getElementById('startSession');
+    const endBtn = document.getElementById('endSession');
+
+    // Delete button handler
     if (deleteBtn) {
         deleteBtn.addEventListener('click', function() {
             const planId = this.getAttribute('data-plan-id');
-            deleteStudyPlan(planId);
+            if (planId) {
+                deleteStudyPlan(planId);
+            }
         });
     }
 
-    // Start session button event listener
-    const startBtn = document.getElementById('startSession');
+    // Start session button handler
     if (startBtn) {
         startBtn.addEventListener('click', startStudySession);
+        console.log('Start session button initialized');
     }
 
-    // End session button event listener
-    const endBtn = document.getElementById('endSession');
+    // End session button handler
     if (endBtn) {
         endBtn.addEventListener('click', endStudySession);
+        console.log('End session button initialized');
     }
 
     // Initialize Feather icons
-    feather.replace();
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
 });
 
 async function startStudySession() {
     try {
+        console.log('Starting study session...');
         const response = await fetch(`/study-plan/{{ study_plan.id }}/session/start`, {
             method: 'POST',
             headers: {
@@ -267,30 +279,43 @@ async function startStudySession() {
             }
         });
 
-        if (!response.ok) throw new Error('Network response was not ok');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
         const result = await response.json();
+        console.log('Session start response:', result);
 
         if (result.success) {
             currentSessionId = result.session_id;
             startTime = new Date();
-            document.getElementById('startSession').classList.add('d-none');
-            document.getElementById('endSession').classList.remove('d-none');
-            document.getElementById('sessionTimer').classList.remove('d-none');
+
+            const startBtn = document.getElementById('startSession');
+            const endBtn = document.getElementById('endSession');
+            const timerDisplay = document.getElementById('sessionTimer');
+
+            if (startBtn) startBtn.classList.add('d-none');
+            if (endBtn) endBtn.classList.remove('d-none');
+            if (timerDisplay) timerDisplay.classList.remove('d-none');
+
             timerInterval = setInterval(updateTimer, 1000);
         } else {
-            alert(result.error || 'Failed to start study session');
+            throw new Error(result.error || 'Failed to start study session');
         }
     } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to start study session');
+        console.error('Error starting session:', error);
+        alert(`Failed to start study session: ${error.message}`);
     }
 }
 
 async function endStudySession() {
-    if (!currentSessionId) return;
+    if (!currentSessionId) {
+        console.error('No active session found');
+        return;
+    }
 
     try {
+        console.log('Ending study session:', currentSessionId);
         const response = await fetch(`/study-plan/{{ study_plan.id }}/session/${currentSessionId}/end`, {
             method: 'POST',
             headers: {
@@ -299,24 +324,32 @@ async function endStudySession() {
             }
         });
 
-        if (!response.ok) throw new Error('Network response was not ok');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
         const result = await response.json();
+        console.log('Session end response:', result);
 
         if (result.success) {
             clearInterval(timerInterval);
-            document.getElementById('startSession').classList.remove('d-none');
-            document.getElementById('endSession').classList.add('d-none');
-            document.getElementById('sessionTimer').classList.add('d-none');
+            const startBtn = document.getElementById('startSession');
+            const endBtn = document.getElementById('endSession');
+            const timerDisplay = document.getElementById('sessionTimer');
+
+            if (startBtn) startBtn.classList.remove('d-none');
+            if (endBtn) endBtn.classList.add('d-none');
+            if (timerDisplay) timerDisplay.classList.add('d-none');
+
             currentSessionId = null;
             startTime = null;
             location.reload();
         } else {
-            alert(result.error || 'Failed to end study session');
+            throw new Error(result.error || 'Failed to end study session');
         }
     } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to end study session');
+        console.error('Error ending session:', error);
+        alert(`Failed to end study session: ${error.message}`);
     }
 }
 
@@ -334,18 +367,20 @@ async function deleteStudyPlan(planId) {
             }
         });
 
-        if (!response.ok) throw new Error('Network response was not ok');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
         const result = await response.json();
 
         if (result.success) {
             window.location.href = '/study-plan';
         } else {
-            alert(result.error || 'Failed to delete study plan');
+            throw new Error(result.error || 'Failed to delete study plan');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Failed to delete study plan');
+        alert(`Failed to delete study plan: ${error.message}`);
     }
 }
 

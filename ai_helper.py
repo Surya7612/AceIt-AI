@@ -24,71 +24,81 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
             context += f"\nProvided resource link: {link}\n"
             has_materials = True
 
-        system_message = """You are an expert study plan creator specializing in interview preparation. 
-Create a comprehensive study plan that includes:
-1. A detailed summary of the topic and learning objectives
-2. Key concepts that need to be mastered
-3. A structured learning path divided into sections
-4. Practice questions with detailed explanations
-5. Additional resources and references
+        # Calculate study duration in days
+        target_date = datetime.strptime(completion_date, '%Y-%m-%d')
+        days_until_target = (target_date - datetime.now()).days
 
-Your response MUST be in valid JSON format with the following structure:
-{
+        # Convert priority to intensity level
+        priority_mapping = {
+            1: "high intensity, comprehensive coverage",
+            2: "medium intensity, balanced coverage",
+            3: "low intensity, essential coverage"
+        }
+        intensity = priority_mapping.get(int(priority), "medium intensity")
+
+        system_message = f"""You are an expert study plan creator specializing in interview preparation. 
+Create a comprehensive study plan that matches {intensity} with {daily_time} minutes per day for {days_until_target} days.
+
+Your response MUST be a well-formatted JSON object with the following structure:
+{{
     "title": "Topic name",
-    "summary": "Comprehensive overview",
-    "difficulty_level": "beginner/intermediate/advanced",
-    "estimated_total_hours": <number>,
+    "summary": "Comprehensive overview tailored to the priority level",
+    "difficulty_level": "{difficulty}",
+    "estimated_total_hours": <total hours needed>,
+    "priority_level": "{intensity}",
     "key_concepts": [
-        {
+        {{
             "name": "Concept name",
             "description": "Detailed explanation",
-            "priority": "high/medium/low"
-        }
+            "priority": "high/medium/low",
+            "estimated_time": <minutes>
+        }}
     ],
     "learning_path": [
-        {
+        {{
             "day": <number>,
-            "duration_minutes": <number>,
+            "duration_minutes": {daily_time},
             "topics": ["Topic 1", "Topic 2"],
             "activities": [
-                {
+                {{
                     "type": "study/practice/review",
                     "description": "Activity description",
-                    "duration_minutes": <number>
-                }
+                    "duration_minutes": <number>,
+                    "priority": "high/medium/low"
+                }}
             ]
-        }
+        }}
     ],
     "sections": [
-        {
+        {{
             "title": "Section name",
             "content": "Detailed content",
             "key_points": ["Point 1", "Point 2"],
-            "examples": ["Example 1", "Example 2"]
-        }
+            "examples": ["Example 1", "Example 2"],
+            "priority": "high/medium/low",
+            "recommended_time": <minutes>
+        }}
     ],
     "practice_questions": [
-        {
+        {{
             "question": "Question text",
             "answer": "Detailed answer",
             "explanation": "Conceptual explanation",
             "difficulty": "easy/medium/hard",
-            "category": "technical/behavioral/system design"
-        }
+            "category": "technical/behavioral/system design",
+            "priority": "high/medium/low"
+        }}
     ],
     "additional_resources": [
-        {
+        {{
             "title": "Resource name",
             "type": "article/video/tutorial",
             "description": "Brief description",
-            "url": "Optional URL"
-        }
+            "url": "Optional URL",
+            "priority": "high/medium/low"
+        }}
     ]
-}"""
-
-        # Calculate study duration in days
-        target_date = datetime.strptime(completion_date, '%Y-%m-%d')
-        days_until_target = (target_date - datetime.now()).days
+}}"""
 
         study_request = f"""Create a detailed study plan with these parameters:
 Topic: {topic}
@@ -100,13 +110,17 @@ Difficulty Level: {difficulty}
 Learning Goals: {goals}
 
 Requirements:
-1. Plan should be completable within {days_until_target} days with {daily_time} minutes per day
+1. Plan MUST be completable within {days_until_target} days studying {daily_time} minutes per day
 2. Difficulty should match specified level: {difficulty}
 3. Content should be specifically tailored for {topic} interview preparation
-4. Include a mix of theoretical concepts and practical examples
-5. Add practice questions that test different aspects of the topic
-6. Recommend additional resources for deeper learning
-7. IMPORTANT: Format your entire response as a valid JSON object following the structure specified above"""
+4. Include detailed concepts and examples based on priority level
+5. For priority level {priority}:
+   - High (1): Comprehensive coverage with advanced concepts and extra practice
+   - Medium (2): Balanced coverage of essential and advanced topics
+   - Low (3): Focus on core concepts and fundamentals
+6. Organize daily activities to maximize the {daily_time} minute sessions
+7. Include practice questions matched to the difficulty and priority level
+8. IMPORTANT: Ensure the response is a properly formatted JSON object following the exact structure above"""
 
         if has_materials:
             study_request += f"\nUse this additional context to customize the plan:\n{context}"
