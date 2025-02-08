@@ -305,17 +305,19 @@ function submitAnswer() {
     });
 }
 
+
 /**
  * Creates and returns an HTML element for a question
  * @param {Object} question - The question object containing id, category, difficulty, etc.
  * @returns {string} HTML string for the question element
  */
 function createQuestionElement(question) {
+    console.log('Creating element for question:', question); // Debug log
     return `
         <button class="list-group-item list-group-item-action" onclick="showQuestion(${question.id})">
             <div class="d-flex w-100 justify-content-between">
-                <h6 class="mb-1">${question.category}</h6>
-                <small class="text-muted">${question.difficulty}</small>
+                <h6 class="mb-1">${question.category || 'General'}</h6>
+                <small class="text-muted">${question.difficulty || 'Medium'}</small>
             </div>
             <p class="mb-1">${question.question}</p>
             ${question.success_rate ? `
@@ -328,10 +330,7 @@ function createQuestionElement(question) {
     `;
 }
 
-/**
- * Generates interview questions based on job description and resume
- * Sends request to backend and updates UI with questions and compatibility analysis
- */
+// Update the generateQuestions function to handle the response better
 window.generateQuestions = function() {
     const jobDescription = document.getElementById('jobDescription').value;
     const resume = document.getElementById('resume').value;
@@ -375,6 +374,8 @@ window.generateQuestions = function() {
     .then(response => response.json())
     .then(data => {
         clearTimeout(loadingTimeout);
+        console.log('Response from server:', data); // Debug log
+
         if (data.success) {
             // Show success message and update UI
             loadingSection.style.display = 'none';
@@ -382,14 +383,18 @@ window.generateQuestions = function() {
 
             // Update questions list
             const questionsList = document.getElementById('questionsList');
-            console.log('Questions received:', data.questions); // Add debug logging
-            questionsList.innerHTML = data.questions
-                .map(q => createQuestionElement(q))
-                .join('');
+            console.log('Questions received:', data.questions); // Debug log
 
-            // Show the first question automatically if available
-            if (data.questions.length > 0) {
+            if (Array.isArray(data.questions) && data.questions.length > 0) {
+                questionsList.innerHTML = data.questions
+                    .map(q => createQuestionElement(q))
+                    .join('');
+
+                // Show the first question automatically if available
                 setTimeout(() => showQuestion(data.questions[0].id), 500);
+            } else {
+                console.error('No questions received or invalid format');
+                alert('Error: No questions were generated. Please try again.');
             }
         } else {
             if (data.premium_required) {

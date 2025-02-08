@@ -127,8 +127,14 @@ Job Description: {job_description[:500]}"""  # Limit job description length
 
         questions = []
         current_question = {}
+        key_mapping = {
+            'Question:': 'question',
+            'Sample Answer:': 'sample_answer',  # Changed from 'sample answer' to 'sample_answer'
+            'Category:': 'category',
+            'Difficulty:': 'difficulty'
+        }
 
-        # Parse the response
+        # Parse the response with improved logic
         for line in content.split('\n'):
             line = line.strip()
             if not line:
@@ -140,10 +146,9 @@ Job Description: {job_description[:500]}"""  # Limit job description length
                     current_question = {}
                 continue
 
-            for field in ['Question:', 'Sample Answer:', 'Category:', 'Difficulty:']:
-                if line.startswith(field):
-                    key = field.lower().replace(':', '').strip()
-                    value = line[len(field):].strip()
+            for prefix, key in key_mapping.items():
+                if line.startswith(prefix):
+                    value = line[len(prefix):].strip()
                     current_question[key] = value
                     break
 
@@ -154,7 +159,7 @@ Job Description: {job_description[:500]}"""  # Limit job description length
             logging.error("No questions were parsed from the response")
             return jsonify({'error': 'Failed to generate questions'}), 500
 
-        # Save questions to database
+        # Save questions to database with consistent key names
         saved_questions = []
         try:
             for q in questions:
@@ -164,7 +169,7 @@ Job Description: {job_description[:500]}"""  # Limit job description length
                 question = InterviewQuestion(
                     user_id=current_user.id,
                     question=q.get('question', ''),
-                    sample_answer=q.get('sample answer', 'Not provided'),
+                    sample_answer=q.get('sample_answer', 'Not provided'),  # Using consistent key name
                     category=q.get('category', 'General'),
                     difficulty=q.get('difficulty', 'Medium'),
                     job_description=job_description[:500],  # Limit stored job description
