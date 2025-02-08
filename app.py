@@ -35,7 +35,6 @@ def index():
     """Render the home page"""
     try:
         from models import Document, StudyPlan
-
         # Get recent documents and study plans if user is logged in
         recent_docs = []
         recent_plans = []
@@ -75,27 +74,13 @@ def view_study_plan(plan_id):
 @app.route('/study-plan')
 @login_required
 def study_plan():
-    """Render the study plans page with limit check for free users"""
+    """Render the study plans page"""
     try:
         from models import StudyPlan
 
         # Get all study plans for the user
         study_plans = StudyPlan.query.filter_by(user_id=current_user.id).order_by(StudyPlan.created_at.desc()).all()
-
         logging.info(f"Found {len(study_plans)} study plans for user {current_user.id}")
-
-        # Only check limits for non-premium users
-        if not current_user.is_premium:
-            # Check if user has reached the daily limit
-            today = datetime.utcnow().date()
-            study_plan_count = StudyPlan.query.filter(
-                StudyPlan.user_id == current_user.id,
-                db.func.date(StudyPlan.created_at) == today
-            ).count()
-
-            if study_plan_count >= 5:
-                flash('Free users are limited to 5 study plans per day. Upgrade to premium for unlimited access.', 'warning')
-                return redirect(url_for('subscription.pricing'))
 
         return render_template('study_plan.html', plans=study_plans)
 
@@ -104,6 +89,70 @@ def study_plan():
         flash('Error loading study plans.', 'error')
         return render_template('study_plan.html', plans=[])
 
+@app.route('/study-plan/<int:plan_id>/session/start', methods=['POST'])
+@login_required
+def start_study_session(plan_id):
+    """Start a study session"""
+    try:
+        from models import StudyPlan, StudySession
+        study_plan = StudyPlan.query.get_or_404(plan_id)
+
+        if study_plan.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        session = StudySession(
+            user_id=current_user.id,
+            study_plan_id=plan_id,
+            start_time=datetime.utcnow()
+        )
+        db.session.add(session)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'session_id': session.id
+        })
+    except Exception as e:
+        logging.error(f"Error starting study session: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/study-plan/<int:plan_id>/session/<int:session_id>/end', methods=['POST'])
+@login_required
+def end_study_session(plan_id, session_id):
+    """End a study session"""
+    try:
+        from models import StudySession
+        session = StudySession.query.get_or_404(session_id)
+
+        if session.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        session.end_time = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error ending study session: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/study-plan/<int:plan_id>/delete', methods=['POST'])
+@login_required
+def delete_study_plan(plan_id):
+    """Delete a study plan"""
+    try:
+        from models import StudyPlan
+        study_plan = StudyPlan.query.get_or_404(plan_id)
+
+        if study_plan.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        db.session.delete(study_plan)
+        db.session.commit()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error deleting study plan: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/documents')
 @login_required
@@ -115,7 +164,88 @@ def documents():
 @login_required
 def folders():
     """Render the folders page"""
-    return render_template('folders.html')
+    try:
+        from models import StudyPlan, Document, Folder
+
+        # Get all folders for the user
+        folders = Folder.query.filter_by(user_id=current_user.id).all()
+
+        # Get unorganized study plans and documents
+        study_plans = StudyPlan.query.filter_by(
+            user_id=current_user.id
+        ).filter(~StudyPlan.folders.any()).all()
+
+        documents = Document.query.filter_by(
+            user_id=current_user.id
+        ).filter(~Document.folders.any()).all()
+
+        return render_template('folders.html', 
+                            folders=folders,
+                            study_plans=study_plans,
+                            documents=documents)
+    except Exception as e:
+        logging.error(f"Error loading folders: {str(e)}")
+        return render_template('folders.html', 
+                            folders=[],
+                            study_plans=[],
+                            documents=[])
+
+@app.route('/folders', methods=['POST'])
+@login_required
+def create_folder():
+    """Create a new folder"""
+    try:
+        from models import Folder
+        data = request.get_json()
+
+        if not data or 'name' not in data:
+            return jsonify({'error': 'Name is required'}), 400
+
+        folder = Folder(
+            user_id=current_user.id,
+            name=data['name']
+        )
+        db.session.add(folder)
+        db.session.commit()
+
+        return jsonify({'success': True, 'folder_id': folder.id})
+    except Exception as e:
+        logging.error(f"Error creating folder: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/folders/<int:folder_id>/items', methods=['POST'])
+@login_required
+def add_to_folder(folder_id):
+    """Add an item to a folder"""
+    try:
+        from models import Folder, StudyPlan, Document
+        folder = Folder.query.get_or_404(folder_id)
+
+        if folder.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        data = request.get_json()
+        if not data or 'type' not in data or 'id' not in data:
+            return jsonify({'error': 'Invalid request data'}), 400
+
+        item_id = int(data['id'])
+        if data['type'] == 'study_plan':
+            item = StudyPlan.query.get_or_404(item_id)
+        elif data['type'] == 'document':
+            item = Document.query.get_or_404(item_id)
+        else:
+            return jsonify({'error': 'Invalid item type'}), 400
+
+        if item.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        folder.items.append(item)
+        db.session.commit()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error adding item to folder: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/interview-practice')
 @login_required
