@@ -75,21 +75,6 @@ task = "shell.exec"
 args = "gunicorn main:app --bind 0.0.0.0:5000 --workers 4 --log-level debug"
 waitForPort = 5000
 
-[[workflows.workflow]]
-name = "Production Server"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "gunicorn main:app --bind 0.0.0.0:5000 --workers 4 --log-level debug"
-waitForPort = 5000
-
 [[ports]]
 localPort = 5000
 externalPort = 80
