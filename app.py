@@ -9,6 +9,7 @@ from openai import OpenAI
 from extensions import app, db
 from auth import auth as auth_blueprint
 from flask_login import login_required, current_user
+from subscription import subscription as subscription_blueprint # Added import
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -18,6 +19,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Register blueprint
 app.register_blueprint(auth_blueprint)
+app.register_blueprint(subscription_blueprint) # Added blueprint registration
 
 @app.route('/')
 def index():

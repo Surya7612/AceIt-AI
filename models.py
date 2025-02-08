@@ -6,12 +6,20 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
 class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # Add autoincrement
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
     is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Subscription related fields
+    stripe_customer_id = db.Column(db.String(255), unique=True)
+    subscription_status = db.Column(db.String(50), default='free')  # free, active, cancelled, expired
+    subscription_end_date = db.Column(db.DateTime)
+
+    # Relationships
+    subscriptions = db.relationship('Subscription', backref='user', lazy=True)
     study_plans = db.relationship('StudyPlan', backref='user', lazy=True)
     documents = db.relationship('Document', backref='user', lazy=True)
     folders = db.relationship('Folder', backref='user', lazy=True)
@@ -21,6 +29,32 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def is_premium(self):
+        """Check if user has an active premium subscription"""
+        return (self.subscription_status == 'active' and 
+                (self.subscription_end_date is None or 
+                 self.subscription_end_date > datetime.utcnow()))
+
+class Subscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    stripe_subscription_id = db.Column(db.String(255), unique=True)
+    stripe_price_id = db.Column(db.String(255))
+    status = db.Column(db.String(50))  # active, cancelled, expired
+    plan_type = db.Column(db.String(50))  # premium
+    amount = db.Column(db.Integer)  # Amount in cents
+    currency = db.Column(db.String(3), default='USD')
+    interval = db.Column(db.String(20))  # month, year
+    start_date = db.Column(db.DateTime, default=datetime.utcnow)
+    end_date = db.Column(db.DateTime)
+    cancelled_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_subscription_user_status', 'user_id', 'status'),
+    )
 
 class StudyPlan(db.Model):
     id = db.Column(db.Integer, primary_key=True)

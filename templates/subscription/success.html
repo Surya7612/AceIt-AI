@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <i data-feather="check-circle" class="text-success" style="width: 64px; height: 64px;"></i>
+            <h2 class="mt-4">Thank You!</h2>
+            <p class="lead">Your premium subscription has been activated successfully.</p>
+            <p>You now have access to all premium features:</p>
+            <ul class="list-unstyled">
+                <li class="mb-2"><i class="feather-check text-success me-2"></i>Unlimited practice questions</li>
+                <li class="mb-2"><i class="feather-check text-success me-2"></i>Audio & video responses</li>
+                <li class="mb-2"><i class="feather-check text-success me-2"></i>Detailed AI feedback</li>
+                <li class="mb-2"><i class="feather-check text-success me-2"></i>Premium study materials</li>
+            </ul>
+            <div class="mt-4">
+                <a href="{{ url_for('interview_practice') }}" class="btn btn-primary">Start Practicing</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

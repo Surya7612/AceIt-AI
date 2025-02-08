@@ -22,4 +22,5 @@ dependencies = [
     "flask-wtf>=1.2.2",
     "trafilatura>=2.0.0",
     "twilio>=9.4.4",
+    "stripe>=11.5.0",
 ]
