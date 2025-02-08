@@ -11,14 +11,18 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
     try:
         # Initialize context from documents if provided
         context = ""
+        has_materials = False
+
         if documents:
             for doc in documents:
                 if doc.structured_content:
                     content = json.loads(doc.structured_content)
                     context += f"\nDocument: {doc.original_filename}\n{content.get('summary', '')}\n"
+                    has_materials = True
 
         if link:
             context += f"\nProvided resource link: {link}\n"
+            has_materials = True
 
         messages = [
             {
@@ -52,7 +56,8 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
             }
         ]
 
-        study_request = f"""Create a detailed study plan with these parameters:
+        # Create a study request with clear indication of content source
+        base_request = f"""Create a detailed study plan with these parameters:
             Topic: {topic}
             Priority Level: {priority} (1=High, 2=Medium, 3=Low)
             Daily Study Time: {daily_time} minutes
@@ -60,8 +65,16 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
             Difficulty: {difficulty}
             Goals: {goals}
 
-            {f'Use this context to create relevant content: {context}' if context else 'Generate comprehensive content for this topic.'}
+            """
 
+        if has_materials:
+            study_request = base_request + f"Use this context to create relevant content: {context}"
+        else:
+            study_request = base_request + """Since no study materials were provided, generate a comprehensive curriculum 
+                covering the fundamental concepts and best practices for this topic. Include industry-standard examples 
+                and practical applications."""
+
+        study_request += """
             The plan should include:
             1. A clear summary of the topic and learning goals
             2. 3-5 key concepts to master

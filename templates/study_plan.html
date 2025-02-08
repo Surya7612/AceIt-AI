@@ -10,6 +10,7 @@
             </div>
             <div class="card-body">
                 <form id="study-plan-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="topic" class="form-label">Topic or Subject</label>
                         <input type="text" class="form-control" id="topic" name="topic" required>
@@ -42,7 +43,8 @@
                     </div>
                     <div class="mb-3">
                         <label for="goals" class="form-label">Learning Goals</label>
-                        <textarea class="form-control" id="goals" name="goals" rows="3" required></textarea>
+                        <textarea class="form-control" id="goals" name="goals" rows="3" required
+                                placeholder="What do you want to achieve? Be specific about your learning objectives."></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Study Materials (Optional)</label>
@@ -56,7 +58,7 @@
                         </div>
                         <small class="text-muted d-block mt-1">
                             Upload files or paste URLs to create an AI-optimized study plan.
-                            If no materials are provided, AI will generate content based on your topic.
+                            If no materials are provided, AI will generate a comprehensive plan based on your topic and goals.
                         </small>
                     </div>
                     <button type="submit" class="btn btn-primary">
@@ -156,6 +158,9 @@
                 const formData = new FormData(form);
                 const response = await fetch('/study-plan', {
                     method: 'POST',
+                    headers: {
+                        'X-CSRFToken': formData.get('csrf_token')
+                    },
                     body: formData
                 });
 
@@ -183,11 +188,12 @@
 
     // Function to add study plan to folder
     function addToFolder(folderId, itemType, itemId) {
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
         fetch(`/folders/${folderId}/items`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
+                'X-CSRFToken': csrfToken
             },
             body: JSON.stringify({
                 type: itemType,
