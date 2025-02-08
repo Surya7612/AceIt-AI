@@ -36,7 +36,7 @@
                     </div>
                     {% endif %}
 
-                    <!-- Job Description and Resume Input -->
+                    <!-- Input Section -->
                     <div class="mb-4">
                         <label for="jobDescription" class="form-label">Enter Job Description</label>
                         <textarea class="form-control mb-2" id="jobDescription" rows="4" placeholder="Paste the job description here..."></textarea>
@@ -73,123 +73,127 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Success message -->
-                        <div id="successSection" style="display: none;" class="mt-3">
-                            <div class="alert alert-success">
-                                <i data-feather="check-circle"></i>
-                                Questions generated successfully!
+                    <!-- Success message -->
+                    <div id="successSection" style="display: none;" class="alert alert-success">
+                        <i data-feather="check-circle"></i>
+                        Questions generated successfully!
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ATS Analysis Section - Moved here for better visibility -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div id="compatibilityDetails" style="display: none;" class="card">
+                <div class="card-body">
+                    <h5 class="card-title">ATS Analysis Report</h5>
+
+                    <!-- Overall Scores -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted mb-2">Overall Match</h6>
+                                    <div class="progress mb-2">
+                                        <div id="compatibilityScore" class="progress-bar" role="progressbar" 
+                                             style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Job Compatibility</small>
+                                </div>
                             </div>
                         </div>
-
-                        <!-- ATS Analysis Section -->
-                        <div id="compatibilityDetails" style="display: none;" class="mt-4">
-                            <h5>ATS Analysis Report</h5>
-
-                            <!-- Overall Scores -->
-                            <div class="row mb-4">
-                                <div class="col-md-4">
-                                    <div class="card">
-                                        <div class="card-body text-center">
-                                            <h6 class="text-muted mb-2">Overall Match</h6>
-                                            <div class="progress mb-2">
-                                                <div id="compatibilityScore" class="progress-bar" role="progressbar" 
-                                                     style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                                </div>
-                                            </div>
-                                            <small class="text-muted">Job Compatibility</small>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted mb-2">ATS Score</h6>
+                                    <div class="progress mb-2">
+                                        <div id="atsScore" class="progress-bar bg-info" role="progressbar" 
+                                             style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                                         </div>
                                     </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="card">
-                                        <div class="card-body text-center">
-                                            <h6 class="text-muted mb-2">ATS Score</h6>
-                                            <div class="progress mb-2">
-                                                <div id="atsScore" class="progress-bar bg-info" role="progressbar" 
-                                                     style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                                </div>
-                                            </div>
-                                            <small class="text-muted">Resume Readability</small>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="card">
-                                        <div class="card-body text-center">
-                                            <h6 class="text-muted mb-2">Keyword Match</h6>
-                                            <div class="progress mb-2">
-                                                <div id="keywordScore" class="progress-bar bg-success" role="progressbar" 
-                                                     style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                                </div>
-                                            </div>
-                                            <small class="text-muted">Key Terms Found</small>
-                                        </div>
-                                    </div>
+                                    <small class="text-muted">Resume Readability</small>
                                 </div>
                             </div>
-
-                            <!-- Detailed Analysis -->
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <!-- Strengths -->
-                                    <div class="card mb-3">
-                                        <div class="card-header bg-success text-white">
-                                            <h6 class="card-title mb-0">Key Strengths</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <ul id="strengthsList" class="list-group list-group-flush">
-                                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h6 class="text-muted mb-2">Keyword Match</h6>
+                                    <div class="progress mb-2">
+                                        <div id="keywordScore" class="progress-bar bg-success" role="progressbar" 
+                                             style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                                         </div>
                                     </div>
-
-                                    <!-- Matching Keywords -->
-                                    <div class="card mb-3">
-                                        <div class="card-header bg-info text-white">
-                                            <h6 class="card-title mb-0">Matching Keywords</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <div id="keyMatches" class="d-flex flex-wrap gap-2">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <!-- Areas for Improvement -->
-                                    <div class="card mb-3">
-                                        <div class="card-header bg-warning">
-                                            <h6 class="card-title mb-0">Areas for Development</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <ul id="gapsList" class="list-group list-group-flush">
-                                            </ul>
-                                        </div>
-                                    </div>
-
-                                    <!-- Missing Keywords -->
-                                    <div class="card mb-3">
-                                        <div class="card-header bg-secondary text-white">
-                                            <h6 class="card-title mb-0">Missing Keywords</h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <div id="missingKeywords" class="d-flex flex-wrap gap-2">
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <small class="text-muted">Key Terms Found</small>
                                 </div>
                             </div>
+                        </div>
+                    </div>
 
-                            <!-- ATS Formatting Suggestions -->
-                            <div class="card mt-3">
-                                <div class="card-header bg-primary text-white">
-                                    <h6 class="card-title mb-0">ATS Optimization Tips</h6>
+                    <!-- Detailed Analysis -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <!-- Strengths -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="card-title mb-0">Key Strengths</h6>
                                 </div>
                                 <div class="card-body">
-                                    <ul id="formatSuggestions" class="list-group list-group-flush">
+                                    <ul id="strengthsList" class="list-group list-group-flush">
                                     </ul>
                                 </div>
                             </div>
+
+                            <!-- Matching Keywords -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="card-title mb-0">Matching Keywords</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="keyMatches" class="d-flex flex-wrap gap-2">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <!-- Areas for Improvement -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-warning">
+                                    <h6 class="card-title mb-0">Areas for Development</h6>
+                                </div>
+                                <div class="card-body">
+                                    <ul id="gapsList" class="list-group list-group-flush">
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <!-- Missing Keywords -->
+                            <div class="card mb-3">
+                                <div class="card-header bg-secondary text-white">
+                                    <h6 class="card-title mb-0">Missing Keywords</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="missingKeywords" class="d-flex flex-wrap gap-2">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ATS Formatting Suggestions -->
+                    <div class="card mt-3">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="card-title mb-0">ATS Optimization Tips</h6>
+                        </div>
+                        <div class="card-body">
+                            <ul id="formatSuggestions" class="list-group list-group-flush">
+                            </ul>
                         </div>
                     </div>
                 </div>
