@@ -54,9 +54,8 @@ def interview_practice():
 
 @app.route('/interview-practice/generate', methods=['POST'])
 @login_required
-@premium_required
 def generate_interview_questions():
-    """Generate interview questions based on job description (Premium Feature)"""
+    """Generate interview questions based on job description"""
     try:
         from models import InterviewQuestion, InterviewPractice
         logging.info("Starting question generation process")
@@ -67,6 +66,15 @@ def generate_interview_questions():
 
         if not job_description:
             return jsonify({'error': 'Job description is required'}), 400
+
+        # Check existing questions count for free users
+        if not current_user.is_premium:
+            existing_questions_count = InterviewQuestion.query.filter_by(user_id=current_user.id).count()
+            if existing_questions_count >= 5:  # Limit for free users
+                return jsonify({
+                    'error': 'Free users are limited to 5 questions. Upgrade to premium for unlimited questions.',
+                    'premium_required': True
+                }), 403
 
         try:
             if not os.environ.get("OPENAI_API_KEY"):
@@ -90,62 +98,8 @@ def generate_interview_questions():
             InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
             db.session.commit()
 
-            # Generate compatibility analysis
-            analysis_prompt = f"""As an expert job matcher, analyze the compatibility between this job description and resume.
-
-You MUST format your response as a valid JSON object with exactly these fields:
-{{
-    "score": (a number between 0 and 100),
-    "strengths": ["strength1", "strength2", ...],
-    "gaps": ["gap1", "gap2", ...]
-}}
-
-Job Description:
-{job_description}
-
-Resume:
-{resume}
-
-Respond ONLY with the JSON object, no additional text."""
-
-            try:
-                analysis_response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": "You are an expert job matcher. You must return only valid JSON."},
-                        {"role": "user", "content": analysis_prompt}
-                    ],
-                    temperature=0.3  # Lower temperature for more consistent formatting
-                )
-
-                # Log the raw response for debugging
-                logging.debug(f"Raw OpenAI response: {analysis_response.choices[0].message.content}")
-
-                # Parse and validate response
-                try:
-                    compatibility_data = json.loads(analysis_response.choices[0].message.content.strip())
-                    if not all(k in compatibility_data for k in ['score', 'strengths', 'gaps']):
-                        raise ValueError("Missing required fields in response")
-                    if not isinstance(compatibility_data['score'], (int, float)):
-                        raise ValueError("Score must be a number")
-                    if not isinstance(compatibility_data['strengths'], list):
-                        raise ValueError("Strengths must be an array")
-                    if not isinstance(compatibility_data['gaps'], list):
-                        raise ValueError("Gaps must be an array")
-
-                    # Ensure score is within bounds
-                    compatibility_data['score'] = max(0, min(100, float(compatibility_data['score'])))
-
-                except (json.JSONDecodeError, ValueError) as e:
-                    logging.error(f"Failed to parse compatibility analysis: {str(e)}")
-                    raise ValueError(f"Invalid response format: {str(e)}")
-
-            except Exception as e:
-                logging.error(f"Error in compatibility analysis: {str(e)}")
-                compatibility_data = {"score": 0, "strengths": [], "gaps": []}
-
             # Generate interview questions
-            questions_prompt = f"""Generate 5 interview questions based on this job description.
+            questions_prompt = f"""Generate {3 if not current_user.is_premium else 5} interview questions based on this job description.
 
 For each question, provide:
 1. Question text
@@ -243,8 +197,7 @@ Difficulty: [Easy/Medium/Hard]
                     'category': q.category,
                     'difficulty': q.difficulty,
                     'success_rate': q.success_rate
-                } for q in saved_questions],
-                'compatibility_ranking': compatibility_data
+                } for q in saved_questions]
             })
 
         except Exception as api_error:
