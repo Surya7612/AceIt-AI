@@ -7,6 +7,8 @@ from flask import request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from openai import OpenAI
 from extensions import app, db
+from auth import auth as auth_blueprint
+from flask_login import login_required, current_user
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -14,31 +16,38 @@ logging.basicConfig(level=logging.DEBUG)
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# Register blueprint
+app.register_blueprint(auth_blueprint)
+
 @app.route('/')
 def index():
     """Render the home page"""
     return render_template('index.html')
 
 @app.route('/study-plan')
+@login_required
 def study_plan():
     """Render the study plans page"""
     return render_template('study_plan.html')
 
 @app.route('/documents')
+@login_required
 def documents():
     """Render the documents page"""
     return render_template('documents.html')
 
 @app.route('/folders')
+@login_required
 def folders():
     """Render the folders page"""
     return render_template('folders.html')
 
 @app.route('/interview-practice')
+@login_required
 def interview_practice():
     """Render the interview practice page"""
     from models import InterviewQuestion
-    questions = InterviewQuestion.query.filter_by(user_id=1).all()
+    questions = InterviewQuestion.query.filter_by(user_id=current_user.id).all()
     return render_template('interview_practice.html', questions=questions)
 
 @app.route('/interview-practice/generate', methods=['POST'])
@@ -65,7 +74,7 @@ def generate_interview_questions():
 
             # First get existing practices to avoid FK constraint violation
             existing_practices = InterviewPractice.query.join(InterviewQuestion).filter(
-                InterviewQuestion.user_id == 1
+                InterviewQuestion.user_id == current_user.id
             ).all()
 
             # Delete practices first
@@ -74,7 +83,7 @@ def generate_interview_questions():
             db.session.commit()
 
             # Now safe to delete questions
-            InterviewQuestion.query.filter_by(user_id=1).delete()
+            InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
             db.session.commit()
 
             # Generate compatibility analysis
@@ -204,7 +213,7 @@ Difficulty: [Easy/Medium/Hard]
                         continue
 
                     question = InterviewQuestion(
-                        user_id=1,
+                        user_id=current_user.id,
                         question=q['question'],
                         sample_answer=q.get('sample_answer', 'Not provided'),
                         category=q.get('category', 'General'),
@@ -303,11 +312,12 @@ def submit_answer(question_id):
             return jsonify({'error': 'Answer type is required'}), 400
 
         # Get next attempt number
-        attempt_number = InterviewPractice.get_next_attempt_number(1, question_id)  # User ID hardcoded for now
+        attempt_number = InterviewPractice.get_next_attempt_number(current_user.id, question_id)
+        
 
         # Create practice record
         practice = InterviewPractice(
-            user_id=1,  # Hardcoded for now
+            user_id=current_user.id,
             question_id=question_id,
             answer_type=answer_type,
             attempt_number=attempt_number
@@ -430,8 +440,8 @@ Respond ONLY with the JSON object, no additional text."""
         return jsonify({'error': str(e)}), 500
 
 
-# Add these routes after the submit_answer route and before database initialization
 @app.route('/interview-practice/export', methods=['POST'])
+@login_required
 def export_interview_data():
     """Export interview practice data"""
     try:
@@ -439,12 +449,12 @@ def export_interview_data():
         logging.info("Starting data export process")
 
         # Get all questions and their practices for the current user
-        questions = InterviewQuestion.query.filter_by(user_id=1).all()
+        questions = InterviewQuestion.query.filter_by(user_id=current_user.id).all()
 
         export_data = []
         for question in questions:
             practices = InterviewPractice.query.filter_by(
-                user_id=1,
+                user_id=current_user.id,
                 question_id=question.id
             ).order_by(InterviewPractice.attempt_number).all()
 
@@ -475,6 +485,7 @@ def export_interview_data():
         return jsonify({'error': str(e), 'success': False}), 500
 
 @app.route('/interview-practice/clear', methods=['POST'])
+@login_required
 def clear_interview_data():
     """Clear all interview practice data"""
     try:
@@ -482,11 +493,11 @@ def clear_interview_data():
         logging.info("Starting data clear process")
 
         # First delete practices to avoid FK constraint violations
-        InterviewPractice.query.filter_by(user_id=1).delete()
+        InterviewPractice.query.filter_by(user_id=current_user.id).delete()
         db.session.commit()
 
         # Then delete questions
-        InterviewQuestion.query.filter_by(user_id=1).delete()
+        InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
         db.session.commit()
 
         return jsonify({'success': True})
