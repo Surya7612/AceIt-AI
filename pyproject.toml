@@ -23,4 +23,5 @@ dependencies = [
     "trafilatura>=2.0.0",
     "twilio>=9.4.4",
     "stripe>=11.5.0",
+    "slack-sdk>=3.34.0",
 ]

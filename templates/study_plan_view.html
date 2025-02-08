@@ -213,6 +213,67 @@
     </div>
 </div>
 
+<!-- Add Study Plan Chat Section -->
+<div class="modal fade" id="studyPlanChatModal" tabindex="-1" aria-labelledby="studyPlanChatModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-bottom border-secondary">
+                <h5 class="modal-title" id="studyPlanChatModalLabel">Study Plan Assistant</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="chatMessages" class="chat-messages mb-3" style="height: 400px; overflow-y: auto;">
+                    <!-- Chat messages will be inserted here -->
+                </div>
+                <form id="chatForm" class="chat-form">
+                    <div class="input-group">
+                        <input type="text" id="messageInput" class="form-control bg-dark text-light" placeholder="Ask about your study plan...">
+                        <button type="submit" class="btn btn-primary">
+                            <i data-feather="send"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Chat Button -->
+<div class="position-fixed bottom-0 end-0 m-4">
+    <button class="btn btn-lg btn-primary rounded-circle shadow" data-bs-toggle="modal" data-bs-target="#studyPlanChatModal">
+        <i data-feather="message-circle"></i>
+    </button>
+</div>
+
+<style>
+.chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.chat-message {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    max-width: 80%;
+}
+
+.chat-message.user {
+    background: var(--bs-primary);
+    align-self: flex-end;
+}
+
+.chat-message.assistant {
+    background: var(--bs-gray-800);
+    align-self: flex-start;
+}
+
+.chat-timestamp {
+    font-size: 0.75rem;
+    color: var(--bs-gray-500);
+}
+</style>
+
 <script>
 let currentSessionId = null;
 let startTime = null;
@@ -444,5 +505,69 @@ async function addToFolder(folderId, itemType, itemId) {
         alert('Failed to add to folder');
     }
 }
+
+// Add Chat Functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const chatForm = document.getElementById('chatForm');
+    const messageInput = document.getElementById('messageInput');
+    const chatMessages = document.getElementById('chatMessages');
+
+    function addMessage(message, isUser = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
+
+        const timestamp = new Date().toLocaleTimeString();
+
+        messageDiv.innerHTML = `
+            <div class="message-content">${message}</div>
+            <div class="chat-timestamp">${timestamp}</div>
+        `;
+
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    chatForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const message = messageInput.value.trim();
+        if (!message) return;
+
+        // Add user message
+        addMessage(message, true);
+        messageInput.value = '';
+
+        try {
+            const response = await fetch('/study-plan-chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    plan_id: {{ study_plan.id }},
+                    context: true
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                addMessage(data.response);
+            } else {
+                addMessage('Sorry, I encountered an error processing your request.');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            addMessage('Sorry, there was an error sending your message.');
+        }
+    });
+
+    // Initialize Feather icons for new elements
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+});
 </script>
 {% endblock %}

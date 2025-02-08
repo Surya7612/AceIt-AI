@@ -103,6 +103,7 @@ def start_study_session(plan_id):
         from models import StudyPlan, StudySession
         logging.info(f"Starting study session for plan {plan_id}")
 
+        # Get the study plan
         study_plan = StudyPlan.query.get_or_404(plan_id)
 
         # Verify ownership
@@ -119,28 +120,27 @@ def start_study_session(plan_id):
 
         if active_session:
             logging.warning(f"Active session already exists for plan {plan_id}")
-            return jsonify({'error': 'An active session already exists'}), 400
+            return jsonify({'error': 'An active session already exists', 'session_id': active_session.id}), 200
 
         # Create new session
-        session = StudySession(
-            user_id=current_user.id,
-            study_plan_id=plan_id,
-            start_time=datetime.utcnow()
-        )
-
         try:
+            session = StudySession(
+                user_id=current_user.id,
+                study_plan_id=plan_id,
+                start_time=datetime.utcnow()
+            )
             db.session.add(session)
             db.session.commit()
             logging.info(f"Successfully created session {session.id} for plan {plan_id}")
+
+            return jsonify({
+                'success': True,
+                'session_id': session.id
+            })
         except Exception as db_error:
             logging.error(f"Database error creating session: {str(db_error)}")
             db.session.rollback()
             return jsonify({'error': 'Failed to create study session'}), 500
-
-        return jsonify({
-            'success': True,
-            'session_id': session.id
-        })
 
     except Exception as e:
         logging.error(f"Error starting study session: {str(e)}")
@@ -832,12 +832,11 @@ def chat():
         try:
             response = chat_response(message, context, tutor_mode, current_user.id)
 
-            # Save chat history
+            # Save chat history            
             chat_record = ChatHistory(
                 user_id=current_user.id,
                 question=message,
-                answer=response
-            )
+                answer=response)
             db.session.add(chat_record)
             db.session.commit()
 
@@ -861,3 +860,78 @@ def chat():
 with app.app_context():
     import models
     db.create_all()
+
+@app.route('/study-plan-chat', methods=['POST'])
+@login_required
+def study_plan_chat():
+    """Handle chat interactions for study plans"""
+    try:
+        from models import StudyPlan, ChatHistory
+        data = request.get_json()
+
+        if not data or 'message' not in data or 'plan_id' not in data:
+            return jsonify({'error': 'Invalid request data'}), 400
+
+        message = data['message']
+        plan_id = data['plan_id']
+        use_context = data.get('context', True)
+
+        # Get the study plan
+        study_plan = StudyPlan.query.get_or_404(plan_id)
+
+        # Verify ownership
+        if study_plan.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        # Get study plan content for context
+        try:
+            plan_content = json.loads(study_plan.content) if study_plan.content else {}
+        except json.JSONDecodeError:
+            plan_content = {}
+
+        # Create context from study plan content
+        context = """Based on the study plan content:
+Summary: {}
+Key Concepts: {}
+""".format(
+            plan_content.get('summary', ''),
+            ', '.join(c.get('name', '') for c in plan_content.get('key_concepts', []))
+        )
+
+        if plan_content.get('sections'):
+            context += "\nMain Topics:\n" + "\n".join(
+                s.get('title', '') for s in plan_content.get('sections', [])
+            )
+
+        # Generate response using AI helper
+        from ai_helper import chat_response
+        try:
+            response = chat_response(
+                message,
+                context if use_context else None,
+                True,
+                current_user.id
+            )
+
+            # Save chat history
+            chat_record = ChatHistory(
+                user_id=current_user.id,
+                study_plan_id=plan_id,
+                question=message,
+                answer=response
+            )
+            db.session.add(chat_record)
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'response': response
+            })
+
+        except Exception as ai_error:
+            logging.error(f"AI response error: {str(ai_error)}")
+            return jsonify({'error': 'Failed to generate response'}), 500
+
+    except Exception as e:
+        logging.error(f"Study plan chat error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
