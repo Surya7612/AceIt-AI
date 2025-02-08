@@ -54,7 +54,7 @@
                             <textarea class="form-control" id="resume" rows="4" placeholder="Paste your resume content here..."></textarea>
                         </div>
 
-                        <button class="btn btn-primary mt-3" onclick="generateQuestions()" id="generateBtn">
+                        <button class="btn btn-primary" onclick="generateQuestions()" id="generateBtn">
                             <i data-feather="cpu"></i> Generate Questions
                         </button>
 
@@ -81,30 +81,6 @@
                                 Questions generated successfully!
                             </div>
                         </div>
-                        <!-- Compatibility Details -->
-                        <div id="compatibilityDetails" style="display: none;" class="mt-4">
-                            <h5>Job Compatibility Analysis</h5>
-                            <div class="mb-3">
-                                <label class="form-label">Overall Match Score</label>
-                                <div class="progress">
-                                    <div id="compatibilityScore" class="progress-bar" role="progressbar" 
-                                         style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <h6>Key Strengths</h6>
-                                    <ul id="strengthsList" class="list-group">
-                                    </ul>
-                                </div>
-                                <div class="col-md-6">
-                                    <h6>Areas for Development</h6>
-                                    <ul id="gapsList" class="list-group">
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -115,21 +91,6 @@
     <div class="row mt-4">
         <div class="col-12">
             <div class="list-group" id="questionsList">
-                {% for question in questions %}
-                <button class="list-group-item list-group-item-action" onclick="showQuestion({{ question.id }})">
-                    <div class="d-flex w-100 justify-content-between">
-                        <h6 class="mb-1">{{ question.category }}</h6>
-                        <small class="text-muted">{{ question.difficulty }}</small>
-                    </div>
-                    <p class="mb-1">{{ question.question }}</p>
-                    {% if question.success_rate %}
-                    <div class="progress mt-2" style="height: 5px;">
-                        <div class="progress-bar" role="progressbar" style="width: {{ question.success_rate }}%"></div>
-                    </div>
-                    <small class="text-muted">Match Rate: {{ "%.1f"|format(question.success_rate) }}%</small>
-                    {% endif %}
-                </button>
-                {% endfor %}
             </div>
         </div>
     </div>
@@ -187,6 +148,43 @@
 
 {% block scripts %}
 <script>
+let currentQuestionId = null;
+
+function handleFileUpload() {
+    const fileInput = document.getElementById('resumeFile');
+    const resumeTextArea = document.getElementById('resume');
+    const file = fileInput.files[0];
+
+    if (!file) return;
+
+    if (file.type === 'text/plain') {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            resumeTextArea.value = e.target.result;
+            showUploadSuccess();
+        };
+        reader.readAsText(file);
+    } else {
+        resumeTextArea.value = `[Content from: ${file.name}]`;
+        showUploadSuccess();
+    }
+}
+
+function showUploadSuccess() {
+    const uploadButton = document.getElementById('uploadButton');
+    uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
+    uploadButton.classList.add('btn-success');
+    uploadButton.classList.remove('btn-outline-secondary');
+    feather.replace();
+
+    setTimeout(() => {
+        uploadButton.innerHTML = '<i data-feather="upload"></i> Upload';
+        uploadButton.classList.remove('btn-success');
+        uploadButton.classList.add('btn-outline-secondary');
+        feather.replace();
+    }, 2000);
+}
+
 function generateQuestions() {
     const jobDescription = document.getElementById('jobDescription').value;
     const resume = document.getElementById('resume').value;
@@ -286,187 +284,6 @@ function showQuestion(questionId) {
         questionElement.querySelector('p').textContent;
 }
 
-function handleFileUpload() {
-    const fileInput = document.getElementById('resumeFile');
-    const resumeTextArea = document.getElementById('resume');
-    const file = fileInput.files[0];
-
-    if (!file) return;
-
-    if (file.type === 'text/plain') {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            resumeTextArea.value = e.target.result;
-            showUploadSuccess();
-        };
-        reader.readAsText(file);
-    } else {
-        resumeTextArea.value = `[Content from: ${file.name}]`;
-        showUploadSuccess();
-    }
-}
-
-function showUploadSuccess() {
-    const uploadButton = document.getElementById('uploadButton');
-    uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
-    uploadButton.classList.add('btn-success');
-    uploadButton.classList.remove('btn-outline-secondary');
-    feather.replace();
-
-    setTimeout(() => {
-        uploadButton.innerHTML = '<i data-feather="upload"></i> Upload';
-        uploadButton.classList.remove('btn-success');
-        uploadButton.classList.add('btn-outline-secondary');
-        feather.replace();
-    }, 2000);
-}
-
-
-document.addEventListener('DOMContentLoaded', function() {
-    feather.replace();
-
-    const fileInput = document.getElementById('resumeFile');
-    const uploadButton = document.getElementById('uploadButton');
-
-    if (fileInput) {
-        fileInput.addEventListener('change', handleFileUpload);
-    }
-
-    if (uploadButton) {
-        uploadButton.addEventListener('click', () => fileInput.click());
-    }
-    document.getElementById('questionsList').innerHTML = '';
-    document.getElementById('practiceArea').style.display = 'none';
-    document.getElementById('feedbackArea').style.display = 'none';
-
-});
-
-function exportData() {
-    fetch('/interview-practice/export', {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'interview_practice_data.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } else {
-            alert('Error exporting data: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to export data');
-    });
-}
-
-function clearData() {
-    if (!confirm('Are you sure you want to clear all interview practice data? This cannot be undone.')) {
-        return;
-    }
-
-    fetch('/interview-practice/clear', {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Error clearing data: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to clear data');
-    });
-}
-
-function updateCompatibilityDetails(compatibilityData) {
-    const compatibilitySection = document.getElementById('compatibilityDetails');
-    const scoreBar = document.getElementById('compatibilityScore');
-    const strengthsList = document.getElementById('strengthsList');
-    const gapsList = document.getElementById('gapsList');
-
-    const score = compatibilityData.compatibility_score;
-    scoreBar.style.width = `${score}%`;
-    scoreBar.setAttribute('aria-valuenow', score);
-    scoreBar.textContent = `${score}%`;
-
-    strengthsList.innerHTML = compatibilityData.strengths
-        .map(strength => `<li class="list-group-item">
-            <i class="feather-check text-success me-2"></i>${strength}
-        </li>`)
-        .join('');
-
-    gapsList.innerHTML = compatibilityData.gaps
-        .map(gap => `<li class="list-group-item">
-            <i class="feather-arrow-up-circle text-warning me-2"></i>${gap}
-        </li>`)
-        .join('');
-
-    compatibilitySection.style.display = 'block';
-}
-
-function showFeedback(feedback) {
-    const feedbackArea = document.getElementById('feedbackArea');
-    const feedbackContent = document.getElementById('feedbackContent');
-
-    let html = `
-        <div class="mb-3">
-            <h6 class="mb-2">Score: ${feedback.score}/100</h6>
-            <div class="progress mb-3">
-                <div class="progress-bar" role="progressbar" style="width: ${feedback.score}%" 
-                    aria-valuenow="${feedback.score}" aria-valuemin="0" aria-valuemax="100">
-                </div>
-            </div>
-        </div>
-        <div class="mb-3">
-            <h6>Feedback:</h6>
-            <p>${feedback.feedback}</p>
-        </div>
-    `;
-
-    if (feedback.confidence_score !== undefined) {
-        html += `
-            <div class="mb-3">
-                <h6>Speaking Confidence: ${feedback.confidence_score}/100</h6>
-                <div class="progress">
-                    <div class="progress-bar bg-info" role="progressbar" 
-                        style="width: ${feedback.confidence_score}%" 
-                        aria-valuenow="${feedback.confidence_score}" 
-                        aria-valuemin="0" 
-                        aria-valuemax="100">
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    feedbackContent.innerHTML = html;
-    feedbackArea.style.display = 'block';
-}
-
-function handlePremiumFeatureError(error) {
-    if (error.premium_required) {
-        const premiumNotice = document.querySelector('.premium-feature-notice');
-        if (premiumNotice) {
-            premiumNotice.style.display = 'block';
-        }
-        document.getElementById('typeText').checked = true;
-        document.getElementById('textAnswer').style.display = 'block';
-        document.getElementById('audioAnswer').style.display = 'none';
-        document.getElementById('videoAnswer').style.display = 'none';
-    }
-}
-
 function submitAnswer() {
     if (!currentQuestionId) return;
 
@@ -517,26 +334,111 @@ function submitAnswer() {
     });
 }
 
-document.querySelectorAll('input[name="answerType"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-        document.getElementById('textAnswer').style.display = 
-            e.target.value === 'text' ? 'block' : 'none';
-        document.getElementById('audioAnswer').style.display = 
-            e.target.value === 'audio' ? 'block' : 'none';
-        document.getElementById('videoAnswer').style.display = 
-            e.target.value === 'video' ? 'block' : 'none';
+function showFeedback(feedback) {
+    const feedbackArea = document.getElementById('feedbackArea');
+    const feedbackContent = document.getElementById('feedbackContent');
 
-        if (!current_user.is_premium) {
-            const premiumNotice = document.querySelector('.premium-feature-notice');
-            if (premiumNotice) {
-                premiumNotice.style.display = 
-                    (e.target.value === 'audio' || e.target.value === 'video') ? 'block' : 'none';
-            }
+    let html = `
+        <div class="mb-3">
+            <h6 class="mb-2">Score: ${feedback.score}/100</h6>
+            <div class="progress mb-3">
+                <div class="progress-bar" role="progressbar" style="width: ${feedback.score}%" 
+                    aria-valuenow="${feedback.score}" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <h6>Feedback:</h6>
+            <p>${feedback.feedback}</p>
+        </div>
+    `;
+
+    feedbackContent.innerHTML = html;
+    feedbackArea.style.display = 'block';
+}
+
+function handlePremiumFeatureError(error) {
+    if (error.premium_required) {
+        const premiumNotice = document.querySelector('.premium-feature-notice');
+        if (premiumNotice) {
+            premiumNotice.style.display = 'block';
         }
+        document.getElementById('typeText').checked = true;
+        document.getElementById('textAnswer').style.display = 'block';
+        document.getElementById('audioAnswer').style.display = 'none';
+        document.getElementById('videoAnswer').style.display = 'none';
+    }
+}
+
+function exportData() {
+    fetch('/interview-practice/export', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'interview_practice_data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } else {
+            alert('Error exporting data: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to export data');
     });
+}
+
+function clearData() {
+    if (!confirm('Are you sure you want to clear all interview practice data? This cannot be undone.')) {
+        return;
+    }
+
+    fetch('/interview-practice/clear', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error clearing data: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to clear data');
+    });
+}
+
+
+// Initialize everything when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    feather.replace();
+
+    // Set up file upload handling
+    const fileInput = document.getElementById('resumeFile');
+    const uploadButton = document.getElementById('uploadButton');
+
+    if (fileInput) {
+        fileInput.addEventListener('change', handleFileUpload);
+    }
+
+    if (uploadButton) {
+        uploadButton.addEventListener('click', () => fileInput.click());
+    }
+
+    // Initialize UI state
+    document.getElementById('questionsList').innerHTML = '';
+    document.getElementById('practiceArea').style.display = 'none';
+    document.getElementById('feedbackArea').style.display = 'none';
 });
-
-let currentQuestionId = null;
-
 </script>
 {% endblock %}
