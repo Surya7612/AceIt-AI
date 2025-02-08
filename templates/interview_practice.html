@@ -382,6 +382,7 @@ window.generateQuestions = function() {
 
             // Update questions list
             const questionsList = document.getElementById('questionsList');
+            console.log('Questions received:', data.questions); // Add debug logging
             questionsList.innerHTML = data.questions
                 .map(q => createQuestionElement(q))
                 .join('');
