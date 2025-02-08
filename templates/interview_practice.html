@@ -134,10 +134,7 @@
         </div>
     </div>
 
-
     <div class="row">
-        <div class="col-md-4">
-            </div>
         <div class="col-md-8">
             <div class="card" id="practiceArea" style="display: none;">
                 <div class="card-header">
@@ -160,50 +157,12 @@
                         </label>
                     </div>
 
-                    {% if not current_user.is_premium %}
-                    <div class="alert alert-warning premium-feature-notice" style="display: none;">
-                        <i data-feather="lock"></i>
-                        This is a premium feature. 
-                        <a href="{{ url_for('subscription.pricing') }}" class="alert-link">Upgrade your account</a> 
-                        to access audio and video responses.
-                    </div>
-                    {% endif %}
-
                     <!-- Text Answer Area -->
                     <div id="textAnswer">
                         <div class="mb-3">
                             <label for="answer" class="form-label">Your Answer</label>
                             <textarea class="form-control" id="answer" rows="6" placeholder="Type your answer here..."></textarea>
                         </div>
-                    </div>
-
-                    <!-- Audio Recording Area -->
-                    <div id="audioAnswer" style="display: none;">
-                        <div class="d-flex align-items-center mb-3">
-                            <button class="btn btn-primary me-2" id="startAudio" onclick="startRecording('audio')">
-                                <i data-feather="mic"></i> Start Recording
-                            </button>
-                            <button class="btn btn-danger me-2" id="stopAudio" onclick="stopRecording('audio')" style="display: none;">
-                                <i data-feather="square"></i> Stop
-                            </button>
-                            <small class="text-muted" id="audioTimer"></small>
-                        </div>
-                        <audio id="audioPlayback" controls style="display: none;"></audio>
-                    </div>
-
-                    <!-- Video Recording Area -->
-                    <div id="videoAnswer" style="display: none;">
-                        <div class="d-flex align-items-center mb-3">
-                            <button class="btn btn-primary me-2" id="startVideo" onclick="startRecording('video')">
-                                <i data-feather="video"></i> Start Recording
-                            </button>
-                            <button class="btn btn-danger me-2" id="stopVideo" onclick="stopRecording('video')" style="display: none;">
-                                <i data-feather="square"></i> Stop
-                            </button>
-                            <small class="text-muted" id="videoTimer"></small>
-                        </div>
-                        <video id="videoPreview" style="display: none;" width="100%" muted></video>
-                        <video id="videoPlayback" controls style="display: none;" width="100%"></video>
                     </div>
 
                     <button class="btn btn-success mt-3" onclick="submitAnswer()">
@@ -228,135 +187,6 @@
 
 {% block scripts %}
 <script>
-// Add premium feature handling to radio button change event
-document.querySelectorAll('input[name="answerType"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-        document.getElementById('textAnswer').style.display = 
-            e.target.value === 'text' ? 'block' : 'none';
-        document.getElementById('audioAnswer').style.display = 
-            e.target.value === 'audio' ? 'block' : 'none';
-        document.getElementById('videoAnswer').style.display = 
-            e.target.value === 'video' ? 'block' : 'none';
-
-        // Show premium feature notice if needed
-        {% if not current_user.is_premium %}
-        const premiumNotice = document.querySelector('.premium-feature-notice');
-        if (premiumNotice) {
-            premiumNotice.style.display = 
-                (e.target.value === 'audio' || e.target.value === 'video') ? 'block' : 'none';
-        }
-        {% endif %}
-    });
-});
-
-// Show error modal for premium features
-function handlePremiumFeatureError(error) {
-    if (error.premium_required) {
-        const premiumNotice = document.querySelector('.premium-feature-notice');
-        if (premiumNotice) {
-            premiumNotice.style.display = 'block';
-        }
-        // Reset to text input
-        document.getElementById('typeText').checked = true;
-        document.getElementById('textAnswer').style.display = 'block';
-        document.getElementById('audioAnswer').style.display = 'none';
-        document.getElementById('videoAnswer').style.display = 'none';
-    }
-}
-
-// Update submitAnswer function to handle premium feature errors
-function submitAnswer() {
-    if (!currentQuestionId) return;
-
-    const answerType = document.querySelector('input[name="answerType"]:checked').value;
-    const formData = new FormData();
-    formData.append('answer_type', answerType);
-
-    if (answerType === 'text') {
-        const answer = document.getElementById('answer').value;
-        if (!answer) {
-            alert('Please provide an answer');
-            return;
-        }
-        formData.append('answer', answer);
-    } else {
-        const mediaElement = document.getElementById(`${answerType}Playback`);
-        if (!mediaElement.src) {
-            alert('Please record your answer first');
-            return;
-        }
-
-        const blob = new Blob(recordedChunks, {
-            type: answerType === 'video' ? 'video/webm' : 'audio/webm'
-        });
-        formData.append('media_file', blob, `${answerType}_answer.webm`);
-    }
-
-    // Show loading state
-    const submitBtn = document.querySelector('button[onclick="submitAnswer()"]');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
-
-    fetch(`/interview-practice/${currentQuestionId}/answer`, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showFeedback(data.feedback);
-            // Reset recording elements
-            if (answerType !== 'text') {
-                document.getElementById(`${answerType}Playback`).style.display = 'none';
-                document.getElementById(`${answerType}Timer`).textContent = '';
-            }
-        } else {
-            if (data.premium_required) {
-                handlePremiumFeatureError(data);
-            } else {
-                alert('Error submitting answer: ' + data.error);
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to submit answer');
-    })
-    .finally(() => {
-        // Reset button state
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-    });
-}
-
-
-
-/**
- * Creates and returns an HTML element for a question
- * @param {Object} question - The question object containing id, category, difficulty, etc.
- * @returns {string} HTML string for the question element
- */
-function createQuestionElement(question) {
-    console.log('Creating element for question:', question); // Debug log
-    return `
-        <button class="list-group-item list-group-item-action" onclick="showQuestion(${question.id})">
-            <div class="d-flex w-100 justify-content-between">
-                <h6 class="mb-1">${question.category || 'General'}</h6>
-                <small class="text-muted">${question.difficulty || 'Medium'}</small>
-            </div>
-            <p class="mb-1">${question.question}</p>
-            ${question.success_rate ? `
-                <div class="progress mt-2" style="height: 5px;">
-                    <div class="progress-bar" role="progressbar" style="width: ${question.success_rate}%"></div>
-                </div>
-                <small class="text-muted">Match Rate: ${question.success_rate.toFixed(1)}%</small>
-            ` : ''}
-        </button>
-    `;
-}
-
-// Update the generateQuestions function to handle the response better
 function generateQuestions() {
     const jobDescription = document.getElementById('jobDescription').value;
     const resume = document.getElementById('resume').value;
@@ -374,36 +204,21 @@ function generateQuestions() {
     loadingSection.style.display = 'block';
     successSection.style.display = 'none';
 
-    // Hide compatibility details while loading
-    document.getElementById('compatibilityDetails').style.display = 'none';
-
     // Clear existing questions
     document.getElementById('questionsList').innerHTML = '';
-
-    // Set a timeout to show an extended loading message after 10 seconds
-    const loadingTimeout = setTimeout(() => {
-        document.querySelector('#loadingSection span').textContent = 
-            'Analyzing and generating questions... This may take a few moments.';
-    }, 10000);
-
-    // Ensure we're not sending empty data
-    const requestData = {
-        job_description: jobDescription,
-        resume: resume || ''
-    };
 
     fetch('/interview-practice/generate', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestData)
+        body: JSON.stringify({
+            job_description: jobDescription,
+            resume: resume || ''
+        })
     })
     .then(response => response.json())
     .then(data => {
-        clearTimeout(loadingTimeout);
-        console.log('Response from server:', data);
-
         if (data.success) {
             // Show success message
             loadingSection.style.display = 'none';
@@ -433,304 +248,99 @@ function generateQuestions() {
         }
     })
     .catch(error => {
-        clearTimeout(loadingTimeout);
         console.error('Error:', error);
         alert('Failed to generate questions. Please try again.');
     })
     .finally(() => {
-        // Reset UI state
         generateBtn.disabled = false;
         loadingSection.style.display = 'none';
     });
 }
 
-let currentQuestionId = null;
-let mediaRecorder = null;
-let recordedChunks = [];
-let startTime = null;
-let timerInterval = null;
-
-/**
- * Updates the recording timer display
- * @param {string} type - Type of recording (audio/video)
- */
-function updateTimer(type) {
-    if (!startTime) return;
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    const minutes = Math.floor(elapsed / 60);
-    const seconds = elapsed % 60;
-    document.getElementById(`${type}Timer`).textContent = 
-        `${minutes}:${seconds.toString().padStart(2, '0')}`;
+function createQuestionElement(question) {
+    return `
+        <button class="list-group-item list-group-item-action" onclick="showQuestion(${question.id})">
+            <div class="d-flex w-100 justify-content-between">
+                <h6 class="mb-1">${question.category || 'General'}</h6>
+                <small class="text-muted">${question.difficulty || 'Medium'}</small>
+            </div>
+            <p class="mb-1">${question.question}</p>
+            ${question.success_rate ? `
+                <div class="progress mt-2" style="height: 5px;">
+                    <div class="progress-bar" role="progressbar" style="width: ${question.success_rate}%"></div>
+                </div>
+                <small class="text-muted">Match Rate: ${question.success_rate.toFixed(1)}%</small>
+            ` : ''}
+        </button>
+    `;
 }
-
-/**
- * Starts recording audio or video
- * @param {string} type - Type of recording (audio/video)
- */
-function startRecording(type) {
-    const constraints = {
-        audio: true,
-        video: type === 'video'
-    };
-
-    // Reset media elements
-    if (type === 'video') {
-        document.getElementById('videoPlayback').style.display = 'none';
-        document.getElementById('videoPreview').style.display = 'none';
-    } else {
-        document.getElementById('audioPlayback').style.display = 'none';
-    }
-
-    navigator.mediaDevices.getUserMedia(constraints)
-        .then(stream => {
-            recordedChunks = [];
-            const mimeType = type === 'video' ? 'video/webm;codecs=vp8,opus' : 'audio/webm;codecs=opus';
-
-            try {
-                mediaRecorder = new MediaRecorder(stream, {
-                    mimeType: mimeType,
-                    audioBitsPerSecond: 128000
-                });
-            } catch (e) {
-                console.error('MediaRecorder error:', e);
-                alert('Your browser may not support recording. Please try a different browser.');
-                return;
-            }
-
-            if (type === 'video') {
-                const preview = document.getElementById('videoPreview');
-                preview.srcObject = stream;
-                preview.style.display = 'block';
-                preview.play().catch(e => console.error('Preview playback error:', e));
-            }
-
-            setupMediaRecorder(type);
-
-            // Start recording
-            mediaRecorder.start(1000);
-            startTime = Date.now();
-            timerInterval = setInterval(() => updateTimer(type), 1000);
-
-            updateRecordingUI(type, true);
-        })
-        .catch(error => {
-            console.error('Error accessing media devices:', error);
-            alert('Failed to access media devices. Please ensure you have granted permission.');
-        });
-}
-
-/**
- * Stops the current recording session
- * @param {string} type - Type of recording (audio/video)
- */
-function stopRecording(type) {
-    if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-
-    mediaRecorder.stop();
-    clearInterval(timerInterval);
-    startTime = null;
-
-    const tracks = mediaRecorder.stream.getTracks();
-    tracks.forEach(track => track.stop());
-
-    updateRecordingUI(type, false);
-}
-
-// Helper function to setup media recorder event listeners
-function setupMediaRecorder(type) {
-    mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-            recordedChunks.push(e.data);
-        }
-    };
-
-    mediaRecorder.onstop = () => {
-        if (recordedChunks.length === 0) {
-            console.error('No data recorded');
-            return;
-        }
-
-        const blob = new Blob(recordedChunks, {
-            type: mediaRecorder.mimeType
-        });
-        const url = URL.createObjectURL(blob);
-
-        if (type === 'video') {
-            document.getElementById('videoPreview').style.display = 'none';
-            const playback = document.getElementById('videoPlayback');
-            playback.src = url;
-            playback.style.display = 'block';
-        } else {
-            const playback = document.getElementById('audioPlayback');
-            playback.src = url;
-            playback.style.display = 'block';
-        }
-    };
-}
-
-// Helper function to update recording UI elements
-function updateRecordingUI(type, isRecording) {
-    document.getElementById(`start${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = isRecording ? 'none' : 'block';
-    document.getElementById(`stop${type.charAt(0).toUpperCase() + type.slice(1)}`).style.display = isRecording ? 'block' : 'none';
-}
-
 
 function showQuestion(questionId) {
     currentQuestionId = questionId;
     const practiceArea = document.getElementById('practiceArea');
     practiceArea.style.display = 'block';
-    document.getElementById('feedbackArea').style.display = 'none';
-    document.getElementById('answer').value = '';
 
     // Update current question text
     const questionElement = document.querySelector(`[onclick="showQuestion(${questionId})"]`);
     document.getElementById('currentQuestion').textContent = 
         questionElement.querySelector('p').textContent;
-
-    // Reset recording elements
-    document.getElementById('audioPlayback').style.display = 'none';
-    document.getElementById('videoPlayback').style.display = 'none';
-    document.getElementById('videoPreview').style.display = 'none';
 }
 
-// Handle answer type selection
-document.querySelectorAll('input[name="answerType"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-        document.getElementById('textAnswer').style.display = 
-            e.target.value === 'text' ? 'block' : 'none';
-        document.getElementById('audioAnswer').style.display = 
-            e.target.value === 'audio' ? 'block' : 'none';
-        document.getElementById('videoAnswer').style.display = 
-            e.target.value === 'video' ? 'block' : 'none';
+function handleFileUpload() {
+    const fileInput = document.getElementById('resumeFile');
+    const resumeTextArea = document.getElementById('resume');
+    const file = fileInput.files[0];
 
-        // Show premium feature notice if needed
-        {% if not current_user.is_premium %}
-        const premiumNotice = document.querySelector('.premium-feature-notice');
-        if (premiumNotice) {
-            premiumNotice.style.display = 
-                (e.target.value === 'audio' || e.target.value === 'video') ? 'block' : 'none';
-        }
-        {% endif %}
-    });
+    if (!file) return;
+
+    if (file.type === 'text/plain') {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            resumeTextArea.value = e.target.result;
+            showUploadSuccess();
+        };
+        reader.readAsText(file);
+    } else {
+        resumeTextArea.value = `[Content from: ${file.name}]`;
+        showUploadSuccess();
+    }
+}
+
+function showUploadSuccess() {
+    const uploadButton = document.getElementById('uploadButton');
+    uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
+    uploadButton.classList.add('btn-success');
+    uploadButton.classList.remove('btn-outline-secondary');
+    feather.replace();
+
+    setTimeout(() => {
+        uploadButton.innerHTML = '<i data-feather="upload"></i> Upload';
+        uploadButton.classList.remove('btn-success');
+        uploadButton.classList.add('btn-outline-secondary');
+        feather.replace();
+    }, 2000);
+}
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    feather.replace();
+
+    const fileInput = document.getElementById('resumeFile');
+    const uploadButton = document.getElementById('uploadButton');
+
+    if (fileInput) {
+        fileInput.addEventListener('change', handleFileUpload);
+    }
+
+    if (uploadButton) {
+        uploadButton.addEventListener('click', () => fileInput.click());
+    }
+    document.getElementById('questionsList').innerHTML = '';
+    document.getElementById('practiceArea').style.display = 'none';
+    document.getElementById('feedbackArea').style.display = 'none';
+
 });
 
-/**
- * Submits the user's answer to the backend
- * Handles text and media submissions
- */
-function submitAnswer() {
-    if (!currentQuestionId) return;
-
-    const answerType = document.querySelector('input[name="answerType"]:checked').value;
-    const formData = new FormData();
-    formData.append('answer_type', answerType);
-
-    if (answerType === 'text') {
-        const answer = document.getElementById('answer').value;
-        if (!answer) {
-            alert('Please provide an answer');
-            return;
-        }
-        formData.append('answer', answer);
-    } else {
-        const mediaElement = document.getElementById(`${answerType}Playback`);
-        if (!mediaElement.src) {
-            alert('Please record your answer first');
-            return;
-        }
-
-        const blob = new Blob(recordedChunks, {
-            type: answerType === 'video' ? 'video/webm' : 'audio/webm'
-        });
-        formData.append('media_file', blob, `${answerType}_answer.webm`);
-    }
-
-    // Show loading state
-    const submitBtn = document.querySelector('button[onclick="submitAnswer()"]');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
-
-    fetch(`/interview-practice/${currentQuestionId}/answer`, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showFeedback(data.feedback);
-            // Reset recording elements
-            if (answerType !== 'text') {
-                document.getElementById(`${answerType}Playback`).style.display = 'none';
-                document.getElementById(`${answerType}Timer`).textContent = '';
-            }
-        } else {
-            if (data.premium_required) {
-                handlePremiumFeatureError(data);
-            } else {
-                alert('Error submitting answer: ' + data.error);
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to submit answer');
-    })
-    .finally(() => {
-        // Reset button state
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-    });
-}
-
-/**
- * Displays the AI feedback to the user
- * @param {Object} feedback - The feedback object from the backend
- */
-function showFeedback(feedback) {
-    const feedbackArea = document.getElementById('feedbackArea');
-    const feedbackContent = document.getElementById('feedbackContent');
-
-    // Create feedback HTML
-    let html = `
-        <div class="mb-3">
-            <h6 class="mb-2">Score: ${feedback.score}/100</h6>
-            <div class="progress mb-3">
-                <div class="progress-bar" role="progressbar" style="width: ${feedback.score}%" 
-                    aria-valuenow="${feedback.score}" aria-valuemin="0" aria-valuemax="100">
-                </div>
-            </div>
-        </div>
-        <div class="mb-3">
-            <h6>Feedback:</h6>
-            <p>${feedback.feedback}</p>
-        </div>
-    `;
-
-    // Add confidence score for audio/video submissions
-    if (feedback.confidence_score !== undefined) {
-        html += `
-            <div class="mb-3">
-                <h6>Speaking Confidence: ${feedback.confidence_score}/100</h6>
-                <div class="progress">
-                    <div class="progress-bar bg-info" role="progressbar" 
-                        style="width: ${feedback.confidence_score}%" 
-                        aria-valuenow="${feedback.confidence_score}" 
-                        aria-valuemin="0" 
-                        aria-valuemax="100">
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    feedbackContent.innerHTML = html;
-    feedbackArea.style.display = 'block';
-}
-
-/**
- * Exports the interview practice data as a JSON file
- */
 function exportData() {
     fetch('/interview-practice/export', {
         method: 'POST'
@@ -738,7 +348,6 @@ function exportData() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Create and download file
             const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -758,9 +367,6 @@ function exportData() {
     });
 }
 
-/**
- * Clears all interview practice data
- */
 function clearData() {
     if (!confirm('Are you sure you want to clear all interview practice data? This cannot be undone.')) {
         return;
@@ -783,94 +389,154 @@ function clearData() {
     });
 }
 
-/**
- * Updates the compatibility details section with strengths and gaps
- * @param {Object} compatibilityData - The compatibility data object
- */
 function updateCompatibilityDetails(compatibilityData) {
     const compatibilitySection = document.getElementById('compatibilityDetails');
     const scoreBar = document.getElementById('compatibilityScore');
     const strengthsList = document.getElementById('strengthsList');
     const gapsList = document.getElementById('gapsList');
 
-    // Update score
     const score = compatibilityData.compatibility_score;
     scoreBar.style.width = `${score}%`;
     scoreBar.setAttribute('aria-valuenow', score);
     scoreBar.textContent = `${score}%`;
 
-    // Update strengths
     strengthsList.innerHTML = compatibilityData.strengths
         .map(strength => `<li class="list-group-item">
             <i class="feather-check text-success me-2"></i>${strength}
         </li>`)
         .join('');
 
-    // Update gaps
     gapsList.innerHTML = compatibilityData.gaps
         .map(gap => `<li class="list-group-item">
             <i class="feather-arrow-up-circle text-warning me-2"></i>${gap}
         </li>`)
         .join('');
 
-    // Show the section
     compatibilitySection.style.display = 'block';
 }
 
-// Initialize page on load
-document.addEventListener('DOMContentLoaded', function() {
-    // Clear questions list on page load/refresh
-    document.getElementById('questionsList').innerHTML = '';
-    document.getElementById('practiceArea').style.display = 'none';
-    document.getElementById('compatibilitySection').style.display = 'none';
-    document.getElementById('feedbackArea').style.display = 'none';
+function showFeedback(feedback) {
+    const feedbackArea = document.getElementById('feedbackArea');
+    const feedbackContent = document.getElementById('feedbackContent');
 
-    // Initialize Feather icons
-    feather.replace();
+    let html = `
+        <div class="mb-3">
+            <h6 class="mb-2">Score: ${feedback.score}/100</h6>
+            <div class="progress mb-3">
+                <div class="progress-bar" role="progressbar" style="width: ${feedback.score}%" 
+                    aria-valuenow="${feedback.score}" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <h6>Feedback:</h6>
+            <p>${feedback.feedback}</p>
+        </div>
+    `;
 
-    // Add file upload handling
-    const fileInput = document.getElementById('resumeFile');
-    const uploadButton = document.getElementById('uploadButton');
-    const resumeTextArea = document.getElementById('resume');
+    if (feedback.confidence_score !== undefined) {
+        html += `
+            <div class="mb-3">
+                <h6>Speaking Confidence: ${feedback.confidence_score}/100</h6>
+                <div class="progress">
+                    <div class="progress-bar bg-info" role="progressbar" 
+                        style="width: ${feedback.confidence_score}%" 
+                        aria-valuenow="${feedback.confidence_score}" 
+                        aria-valuemin="0" 
+                        aria-valuemax="100">
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 
-    function handleFileUpload() {
-        const file = fileInput.files[0];
-        if (!file) return;
+    feedbackContent.innerHTML = html;
+    feedbackArea.style.display = 'block';
+}
 
-        if (file.type === 'text/plain') {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                resumeTextArea.value = e.target.result;
-                showUploadSuccess();
-            };
-            reader.readAsText(file);
-        } else {
-            resumeTextArea.value = `[Content from: ${file.name}]`;
-            showUploadSuccess();
+function handlePremiumFeatureError(error) {
+    if (error.premium_required) {
+        const premiumNotice = document.querySelector('.premium-feature-notice');
+        if (premiumNotice) {
+            premiumNotice.style.display = 'block';
         }
+        document.getElementById('typeText').checked = true;
+        document.getElementById('textAnswer').style.display = 'block';
+        document.getElementById('audioAnswer').style.display = 'none';
+        document.getElementById('videoAnswer').style.display = 'none';
+    }
+}
+
+function submitAnswer() {
+    if (!currentQuestionId) return;
+
+    const answerType = document.querySelector('input[name="answerType"]:checked').value;
+    const formData = new FormData();
+    formData.append('answer_type', answerType);
+
+    if (answerType === 'text') {
+        const answer = document.getElementById('answer').value;
+        if (!answer) {
+            alert('Please provide an answer');
+            return;
+        }
+        formData.append('answer', answer);
+    } else {
+        alert('Audio/Video answers are not supported in this version.');
+        return;
     }
 
-    function showUploadSuccess() {
-        uploadButton.innerHTML = '<i data-feather="check"></i> Uploaded';
-        uploadButton.classList.add('btn-success');
-        uploadButton.classList.remove('btn-outline-secondary');
-        feather.replace();
+    const submitBtn = document.querySelector('button[onclick="submitAnswer()"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
 
-        setTimeout(() => {
-            uploadButton.innerHTML = '<i data-feather="upload"></i> Upload';
-            uploadButton.classList.remove('btn-success');
-            uploadButton.classList.add('btn-outline-secondary');
-            feather.replace();
-        }, 2000);
-    }
+    fetch(`/interview-practice/${currentQuestionId}/answer`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showFeedback(data.feedback);
+        } else {
+            if (data.premium_required) {
+                handlePremiumFeatureError(data);
+            } else {
+                alert('Error submitting answer: ' + data.error);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to submit answer');
+    })
+    .finally(() => {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    });
+}
 
-    if (fileInput) {
-        fileInput.addEventListener('change', handleFileUpload);
-    }
+document.querySelectorAll('input[name="answerType"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        document.getElementById('textAnswer').style.display = 
+            e.target.value === 'text' ? 'block' : 'none';
+        document.getElementById('audioAnswer').style.display = 
+            e.target.value === 'audio' ? 'block' : 'none';
+        document.getElementById('videoAnswer').style.display = 
+            e.target.value === 'video' ? 'block' : 'none';
 
-    if (<previous_generation>uploadButton) {
-        uploadButton.addEventListener('click', () => fileInput.click());
-    }
+        if (!current_user.is_premium) {
+            const premiumNotice = document.querySelector('.premium-feature-notice');
+            if (premiumNotice) {
+                premiumNotice.style.display = 
+                    (e.target.value === 'audio' || e.target.value === 'video') ? 'block' : 'none';
+            }
+        }
+    });
 });
+
+let currentQuestionId = null;
+
 </script>
 {% endblock %}
