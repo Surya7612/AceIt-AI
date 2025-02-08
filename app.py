@@ -166,7 +166,7 @@ Base the analysis on standard ATS criteria:
 
         # Generate interview questions
         questions_prompt = f"""Generate 5 interview questions based on this job description:
-        
+
 {job_description[:500]}
 
 For each question, use this EXACT format with no variations:
@@ -528,6 +528,59 @@ def clear_interview_data():
     except Exception as e:
         logging.error(f"Error clearing data: {str(e)}")
         db.session.rollback()
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@app.route('/study-plan', methods=['POST'])
+@login_required
+def create_study_plan():
+    """Create a new study plan"""
+    try:
+        from models import StudyPlan
+        logging.info("Starting study plan creation process")
+
+        # Get form data
+        data = request.form.to_dict()
+        logging.debug(f"Received form data: {data}")
+
+        # Basic validation
+        required_fields = ['topic', 'priority', 'daily_time', 'completion_date', 'difficulty', 'goals']
+        for field in required_fields:
+            if field not in data:
+                logging.error(f"Missing required field: {field}")
+                return jsonify({'error': f'Missing required field: {field}', 'success': False}), 400
+
+        try:
+            # Create study plan
+            study_plan = StudyPlan(
+                user_id=current_user.id,
+                title=data['topic'],
+                category='General',  # Default category
+                content=json.dumps({
+                    'goals': data['goals'],
+                    'initial_content': 'Pending generation'
+                }),
+                priority=int(data['priority']),
+                daily_study_time=int(data['daily_time']),
+                completion_target=datetime.strptime(data['completion_date'], '%Y-%m-%d'),
+                difficulty_level=data['difficulty']
+            )
+
+            db.session.add(study_plan)
+            db.session.commit()
+            logging.info(f"Successfully created study plan with ID: {study_plan.id}")
+
+            return jsonify({
+                'success': True,
+                'plan_id': study_plan.id
+            })
+
+        except Exception as db_error:
+            logging.error(f"Database error while creating study plan: {str(db_error)}")
+            db.session.rollback()
+            return jsonify({'error': 'Failed to save study plan to database', 'success': False}), 500
+
+    except Exception as e:
+        logging.error(f"Error creating study plan: {str(e)}")
         return jsonify({'error': str(e), 'success': False}), 500
 
 # Initialize database
