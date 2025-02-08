@@ -82,26 +82,111 @@
                             </div>
                         </div>
 
-                        <!-- Compatibility Details -->
+                        <!-- ATS Analysis Section -->
                         <div id="compatibilityDetails" style="display: none;" class="mt-4">
-                            <h5>Job Compatibility Analysis</h5>
-                            <div class="mb-3">
-                                <label class="form-label">Overall Match Score</label>
-                                <div class="progress">
-                                    <div id="compatibilityScore" class="progress-bar" role="progressbar" 
-                                         style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <h5>ATS Analysis Report</h5>
+
+                            <!-- Overall Scores -->
+                            <div class="row mb-4">
+                                <div class="col-md-4">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6 class="text-muted mb-2">Overall Match</h6>
+                                            <div class="progress mb-2">
+                                                <div id="compatibilityScore" class="progress-bar" role="progressbar" 
+                                                     style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">Job Compatibility</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6 class="text-muted mb-2">ATS Score</h6>
+                                            <div class="progress mb-2">
+                                                <div id="atsScore" class="progress-bar bg-info" role="progressbar" 
+                                                     style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">Resume Readability</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6 class="text-muted mb-2">Keyword Match</h6>
+                                            <div class="progress mb-2">
+                                                <div id="keywordScore" class="progress-bar bg-success" role="progressbar" 
+                                                     style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">Key Terms Found</small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Detailed Analysis -->
                             <div class="row">
                                 <div class="col-md-6">
-                                    <h6>Key Strengths</h6>
-                                    <ul id="strengthsList" class="list-group">
-                                    </ul>
+                                    <!-- Strengths -->
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-success text-white">
+                                            <h6 class="card-title mb-0">Key Strengths</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <ul id="strengthsList" class="list-group list-group-flush">
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <!-- Matching Keywords -->
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-info text-white">
+                                            <h6 class="card-title mb-0">Matching Keywords</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="keyMatches" class="d-flex flex-wrap gap-2">
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+
                                 <div class="col-md-6">
-                                    <h6>Areas for Development</h6>
-                                    <ul id="gapsList" class="list-group">
+                                    <!-- Areas for Improvement -->
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-warning">
+                                            <h6 class="card-title mb-0">Areas for Development</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <ul id="gapsList" class="list-group list-group-flush">
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <!-- Missing Keywords -->
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-secondary text-white">
+                                            <h6 class="card-title mb-0">Missing Keywords</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="missingKeywords" class="d-flex flex-wrap gap-2">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ATS Formatting Suggestions -->
+                            <div class="card mt-3">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="card-title mb-0">ATS Optimization Tips</h6>
+                                </div>
+                                <div class="card-body">
+                                    <ul id="formatSuggestions" class="list-group list-group-flush">
                                     </ul>
                                 </div>
                             </div>
@@ -306,27 +391,63 @@ function createQuestionElement(question) {
 
 function updateCompatibilityDetails(compatibilityData) {
     const compatibilitySection = document.getElementById('compatibilityDetails');
-    const scoreBar = document.getElementById('compatibilityScore');
-    const strengthsList = document.getElementById('strengthsList');
-    const gapsList = document.getElementById('gapsList');
 
-    // Update score
+    // Update score bars
+    const scoreBar = document.getElementById('compatibilityScore');
+    const atsScoreBar = document.getElementById('atsScore');
+    const keywordScoreBar = document.getElementById('keywordScore');
+
+    // Update overall match score
     const score = compatibilityData.compatibility_score;
     scoreBar.style.width = `${score}%`;
     scoreBar.setAttribute('aria-valuenow', score);
     scoreBar.textContent = `${score}%`;
 
+    // Update ATS score
+    const atsScore = compatibilityData.ats_score;
+    atsScoreBar.style.width = `${atsScore}%`;
+    atsScoreBar.setAttribute('aria-valuenow', atsScore);
+    atsScoreBar.textContent = `${atsScore}%`;
+
+    // Update keyword match rate
+    const keywordScore = compatibilityData.keyword_match_rate;
+    keywordScoreBar.style.width = `${keywordScore}%`;
+    keywordScoreBar.setAttribute('aria-valuenow', keywordScore);
+    keywordScoreBar.textContent = `${keywordScore}%`;
+
     // Update strengths
+    const strengthsList = document.getElementById('strengthsList');
     strengthsList.innerHTML = compatibilityData.strengths
         .map(strength => `<li class="list-group-item">
-            <i class="feather-check text-success me-2"></i>${strength}
+            <i class="feather-check-circle text-success me-2"></i>${strength}
         </li>`)
         .join('');
 
     // Update gaps
+    const gapsList = document.getElementById('gapsList');
     gapsList.innerHTML = compatibilityData.gaps
         .map(gap => `<li class="list-group-item">
-            <i class="feather-arrow-up-circle text-warning me-2"></i>${gap}
+            <i class="feather-alert-circle text-warning me-2"></i>${gap}
+        </li>`)
+        .join('');
+
+    // Update matching keywords
+    const keyMatches = document.getElementById('keyMatches');
+    keyMatches.innerHTML = compatibilityData.key_matches
+        .map(keyword => `<span class="badge bg-info">${keyword}</span>`)
+        .join('');
+
+    // Update missing keywords
+    const missingKeywords = document.getElementById('missingKeywords');
+    missingKeywords.innerHTML = compatibilityData.missing_keywords
+        .map(keyword => `<span class="badge bg-secondary">${keyword}</span>`)
+        .join('');
+
+    // Update formatting suggestions
+    const formatSuggestions = document.getElementById('formatSuggestions');
+    formatSuggestions.innerHTML = compatibilityData.format_suggestions
+        .map(suggestion => `<li class="list-group-item">
+            <i class="feather-info text-primary me-2"></i>${suggestion}
         </li>`)
         .join('');
 

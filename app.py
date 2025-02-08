@@ -119,7 +119,7 @@ def generate_interview_questions():
         compatibility = None
         if resume:
             try:
-                compatibility_prompt = f"""Analyze the compatibility between this resume and job description:
+                compatibility_prompt = f"""As an ATS (Applicant Tracking System) expert, analyze the compatibility between this resume and job description:
 
 Resume:
 {resume[:1000]}
@@ -127,17 +127,30 @@ Resume:
 Job Description:
 {job_description[:500]}
 
-Provide your analysis in this exact JSON format:
+Provide a detailed ATS analysis in this exact JSON format:
 {{
-    "compatibility_score": (number between 0-100),
-    "strengths": [list of 3-5 key matching strengths],
-    "gaps": [list of 2-3 areas for improvement]
-}}"""
+    "compatibility_score": (overall match percentage between 0-100),
+    "ats_score": (ATS readability score between 0-100),
+    "keyword_match_rate": (percentage of key terms matched between 0-100),
+    "strengths": [list of 3-5 key matching strengths with specific examples],
+    "gaps": [list of 2-3 missing skills or experiences],
+    "key_matches": [list of 4-5 important keywords found in both],
+    "missing_keywords": [list of 3-4 important keywords from job description not found in resume],
+    "format_suggestions": [list of 2-3 ATS-friendly formatting suggestions if any]
+}}
+
+Base the analysis on standard ATS criteria:
+- Keyword matching and frequency
+- Skills alignment
+- Experience relevance
+- Education requirements
+- Technical qualifications
+- Industry-specific terminology"""
 
                 compatibility_response = client.chat.completions.create(
                     model="gpt-4",
                     messages=[
-                        {"role": "system", "content": "You are an expert HR analyst."},
+                        {"role": "system", "content": "You are an expert ATS analyst specializing in technical roles."},
                         {"role": "user", "content": compatibility_prompt}
                     ],
                     response_format={"type": "json_object"},
@@ -145,7 +158,7 @@ Provide your analysis in this exact JSON format:
                 )
 
                 compatibility = json.loads(compatibility_response.choices[0].message.content)
-                logging.info("Generated compatibility analysis")
+                logging.info("Generated ATS compatibility analysis")
 
             except Exception as analysis_error:
                 logging.error(f"Error generating compatibility analysis: {str(analysis_error)}")
@@ -153,7 +166,7 @@ Provide your analysis in this exact JSON format:
 
         # Generate interview questions
         questions_prompt = f"""Generate 5 interview questions based on this job description:
-
+        
 {job_description[:500]}
 
 For each question, use this EXACT format with no variations:
