@@ -40,20 +40,20 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
             {
                 "role": "system",
                 "content": f"""You are an expert study plan creator specializing in interview preparation. 
-You will create a comprehensive study plan that matches {intensity} with {daily_time} minutes per day for {days_until_target} days.
+Create a comprehensive study plan following these exact instructions:
 
-Your output MUST be a valid JSON object exactly following this structure, with no additional fields or formatting:
+1. Your output MUST be a valid JSON string following this exact structure:
 {{
-    "title": "Topic name - will be {topic}",
+    "title": "{topic}",
     "summary": "A comprehensive overview tailored to the priority level",
     "difficulty_level": "{difficulty}",
     "estimated_total_hours": "number",
     "priority_level": "{intensity}",
     "key_concepts": [
         {{
-            "name": "Concept name",
-            "description": "Detailed explanation",
-            "priority": "high/medium/low",
+            "name": "string",
+            "description": "string",
+            "priority": "string",
             "estimated_time": "number"
         }}
     ],
@@ -61,47 +61,53 @@ Your output MUST be a valid JSON object exactly following this structure, with n
         {{
             "day": "number",
             "duration_minutes": {daily_time},
-            "topics": ["Topic 1", "Topic 2"],
+            "topics": ["string"],
             "activities": [
                 {{
-                    "type": "study/practice/review",
-                    "description": "Activity description",
+                    "type": "string",
+                    "description": "string",
                     "duration_minutes": "number",
-                    "priority": "high/medium/low"
+                    "priority": "string"
                 }}
             ]
         }}
     ],
     "sections": [
         {{
-            "title": "Section name",
-            "content": "Detailed content",
-            "key_points": ["Point 1", "Point 2"],
-            "examples": ["Example 1", "Example 2"],
-            "priority": "high/medium/low",
+            "title": "string",
+            "content": "string", 
+            "key_points": ["string"],
+            "examples": ["string"],
+            "priority": "string",
             "recommended_time": "number"
         }}
     ],
     "practice_questions": [
         {{
-            "question": "Question text",
-            "answer": "Detailed answer",
-            "explanation": "Conceptual explanation",
-            "difficulty": "easy/medium/hard",
-            "category": "technical/behavioral/system design",
-            "priority": "high/medium/low"
+            "question": "string",
+            "answer": "string",
+            "explanation": "string",
+            "difficulty": "string",
+            "category": "string",
+            "priority": "string"
         }}
     ],
     "additional_resources": [
         {{
-            "title": "Resource name",
-            "type": "article/video/tutorial",
-            "description": "Brief description",
-            "url": "Optional URL",
-            "priority": "high/medium/low"
+            "title": "string",
+            "type": "string",
+            "description": "string",
+            "url": "string",
+            "priority": "string"
         }}
     ]
-}}"""
+}}
+
+2. All JSON fields must be present and properly formatted
+3. Ensure all number values are actual numbers not strings
+4. Use consistent string values for priorities: "high", "medium", "low"
+5. Use consistent string values for difficulties: "easy", "medium", "hard"
+6. All arrays must have at least one item"""
             },
             {
                 "role": "user",
@@ -135,8 +141,7 @@ Requirements:
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=messages,
-            temperature=0.7,
-            response_format={"type": "json_object"}
+            temperature=0.7
         )
 
         # Parse and validate the response
@@ -153,8 +158,9 @@ Requirements:
 
             logging.debug(f"Generated study plan: {json.dumps(schedule, indent=2)}")
             return schedule
+
         except json.JSONDecodeError as je:
-            logging.error(f"Failed to parse OpenAI response as JSON: {str(je)}")
+            logging.error(f"Failed to parse OpenAI response as JSON: {str(je)}\nContent: {content}")
             raise Exception("Failed to generate valid study schedule format")
         except Exception as e:
             logging.error(f"Error validating study schedule: {str(e)}")
