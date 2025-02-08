@@ -36,34 +36,37 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
         }
         intensity = priority_mapping.get(int(priority), "medium intensity")
 
-        system_message = f"""You are an expert study plan creator specializing in interview preparation. 
-Create a comprehensive study plan that matches {intensity} with {daily_time} minutes per day for {days_until_target} days.
+        messages = [
+            {
+                "role": "system",
+                "content": f"""You are an expert study plan creator specializing in interview preparation. 
+You will create a comprehensive study plan that matches {intensity} with {daily_time} minutes per day for {days_until_target} days.
 
-Your response MUST be a well-formatted JSON object with the following structure:
+Your output MUST be a valid JSON object exactly following this structure, with no additional fields or formatting:
 {{
-    "title": "Topic name",
-    "summary": "Comprehensive overview tailored to the priority level",
+    "title": "Topic name - will be {topic}",
+    "summary": "A comprehensive overview tailored to the priority level",
     "difficulty_level": "{difficulty}",
-    "estimated_total_hours": <total hours needed>,
+    "estimated_total_hours": "number",
     "priority_level": "{intensity}",
     "key_concepts": [
         {{
             "name": "Concept name",
             "description": "Detailed explanation",
             "priority": "high/medium/low",
-            "estimated_time": <minutes>
+            "estimated_time": "number"
         }}
     ],
     "learning_path": [
         {{
-            "day": <number>,
+            "day": "number",
             "duration_minutes": {daily_time},
             "topics": ["Topic 1", "Topic 2"],
             "activities": [
                 {{
                     "type": "study/practice/review",
                     "description": "Activity description",
-                    "duration_minutes": <number>,
+                    "duration_minutes": "number",
                     "priority": "high/medium/low"
                 }}
             ]
@@ -76,7 +79,7 @@ Your response MUST be a well-formatted JSON object with the following structure:
             "key_points": ["Point 1", "Point 2"],
             "examples": ["Example 1", "Example 2"],
             "priority": "high/medium/low",
-            "recommended_time": <minutes>
+            "recommended_time": "number"
         }}
     ],
     "practice_questions": [
@@ -99,8 +102,10 @@ Your response MUST be a well-formatted JSON object with the following structure:
         }}
     ]
 }}"""
-
-        study_request = f"""Create a detailed study plan with these parameters:
+            },
+            {
+                "role": "user",
+                "content": f"""Create a detailed study plan with these parameters:
 Topic: {topic}
 Priority Level: {priority} (1=High, 2=Medium, 3=Low)
 Daily Study Time: {daily_time} minutes
@@ -110,42 +115,50 @@ Difficulty Level: {difficulty}
 Learning Goals: {goals}
 
 Requirements:
-1. Plan MUST be completable within {days_until_target} days studying {daily_time} minutes per day
-2. Difficulty should match specified level: {difficulty}
-3. Content should be specifically tailored for {topic} interview preparation
-4. Include detailed concepts and examples based on priority level
-5. For priority level {priority}:
-   - High (1): Comprehensive coverage with advanced concepts and extra practice
+1. Plan MUST be completable in {days_until_target} days with {daily_time} minutes daily sessions
+2. Match difficulty level: {difficulty}
+3. Content must be specifically tailored for {topic} interview preparation
+4. Include detailed concepts with examples based on priority level {priority}:
+   - High (1): Comprehensive coverage with advanced concepts
    - Medium (2): Balanced coverage of essential and advanced topics
    - Low (3): Focus on core concepts and fundamentals
-6. Organize daily activities to maximize the {daily_time} minute sessions
-7. Include practice questions matched to the difficulty and priority level
-8. IMPORTANT: Ensure the response is a properly formatted JSON object following the exact structure above"""
+5. Daily activities should maximize {daily_time}-minute sessions
+6. Practice questions should match the difficulty and priority level
+7. All time estimates must be realistic within the daily time limit"""
+            }
+        ]
 
         if has_materials:
-            study_request += f"\nUse this additional context to customize the plan:\n{context}"
-
-        messages = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": study_request}
-        ]
+            messages[1]["content"] += f"\nUse this additional context to customize the plan:\n{context}"
 
         logging.info("Generating study plan with OpenAI")
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=messages,
-            temperature=0.7
+            temperature=0.7,
+            response_format={"type": "json_object"}
         )
 
-        # Parse the response content as JSON
+        # Parse and validate the response
         try:
             content = response.choices[0].message.content
             schedule = json.loads(content)
-            logging.debug(f"Generated content: {json.dumps(schedule, indent=2)}")
+
+            # Basic validation of required fields
+            required_fields = ["title", "summary", "difficulty_level", "key_concepts", 
+                             "learning_path", "sections", "practice_questions"]
+
+            if not all(field in schedule for field in required_fields):
+                raise ValueError("Missing required fields in generated schedule")
+
+            logging.debug(f"Generated study plan: {json.dumps(schedule, indent=2)}")
             return schedule
         except json.JSONDecodeError as je:
             logging.error(f"Failed to parse OpenAI response as JSON: {str(je)}")
             raise Exception("Failed to generate valid study schedule format")
+        except Exception as e:
+            logging.error(f"Error validating study schedule: {str(e)}")
+            raise Exception(f"Failed to validate study schedule: {str(e)}")
 
     except Exception as e:
         logging.error(f"Failed to generate study schedule: {str(e)}")
