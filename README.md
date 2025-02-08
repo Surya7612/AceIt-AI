@@ -1,3 +1,92 @@
+# AceIt AI - Intelligent Interview Preparation Platform
+
+## Product Description:
+AceIt AI is an innovative interview preparation platform that leverages artificial intelligence to help job seekers improve their interview skills through personalized learning and real-time feedback. The platform combines advanced AI technologies with interactive learning tools to create a comprehensive interview preparation experience.
+
+## Key Features:
+
+#### Personalized Study Plans
+
+- AI-generated study schedules based on user goals
+- Progress tracking and adaptive learning paths
+- Resource organization with folders and document management
+- Interactive Interview Practice
+
+#### AI-generated interview questions based on job descriptions
+
+- Real-time feedback on responses
+- Support for text, audio, and video responses
+- Confidence scoring and performance analytics
+- Smart Document Management
+
+#### Document upload and organization
+- AI-powered content extraction and summarization
+- Structured content categorization
+- AI-Powered Chat Assistance
+
+#### Context-aware tutoring
+- Real-time question answering
+- Interview strategy guidance
+
+## Technical Stack:
+
+#### Backend Infrastructure:
+
+- Flask web framework
+- SQLAlchemy ORM
+- PostgreSQL database
+- Redis for caching
+- Celery for background tasks
+
+#### AI Integration:
+
+- OpenAI GPT-4 for content generation
+- Whisper API for speech-to-text
+- Custom AI models for analysis
+
+#### Security:
+
+- JWT-based authentication
+- Role-based access control
+- Secure file handling
+- Environment-based configuration
+
+### Installation Requirements:
+
+#### System Requirements:
+
+- Python 3.11+
+- PostgreSQL 12+
+- Redis Server
+- Modern web browser
+
+#### Key Dependencies:
+
+- Flask and extensions (SQLAlchemy, Login, WTF)
+- Celery for async tasks
+- OpenAI API
+- Email validation
+- Secure password hashing
+
+#### Environment Variables:
+
+- Database configuration
+- OpenAI API credentials
+- Flask security keys
+- Server configuration
+
+#### Development Setup:
+
+- Initialize PostgreSQL database
+- Configure Redis server
+- Set up Celery worker
+- Configure environment variables
+- Initialize Flask application
+
+### In Details:
+
+### 1. Clone Repository
+```
 git clone https://github.com/yourusername/aceit-ai.git
 cd aceit-ai
 ```
