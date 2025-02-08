@@ -3,13 +3,13 @@ import logging
 import random
 import json
 from datetime import datetime
-from flask import request, jsonify, render_template
+from flask import request, jsonify, render_template, flash, redirect, url_for
 from werkzeug.utils import secure_filename
 from openai import OpenAI
 from extensions import app, db
 from auth import auth as auth_blueprint
 from flask_login import login_required, current_user
-from subscription import subscription as subscription_blueprint, premium_required # Added import and premium_required
+from subscription import subscription as subscription_blueprint, premium_required
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -19,7 +19,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Register blueprint
 app.register_blueprint(auth_blueprint)
-app.register_blueprint(subscription_blueprint) # Added blueprint registration
+app.register_blueprint(subscription_blueprint)
 
 @app.route('/')
 def index():
@@ -29,8 +29,23 @@ def index():
 @app.route('/study-plan')
 @login_required
 def study_plan():
-    """Render the study plans page"""
-    return render_template('study_plan.html')
+    """Render the study plans page with limit check for free users"""
+    from models import StudyPlan
+
+    if not current_user.is_premium:
+        # Check if user has reached the daily limit
+        today = datetime.utcnow().date()
+        study_plan_count = StudyPlan.query.filter(
+            StudyPlan.user_id == current_user.id,
+            db.func.date(StudyPlan.created_at) == today
+        ).count()
+
+        if study_plan_count >= 5:
+            flash('Free users are limited to 5 study plans per day. Upgrade to premium for unlimited access.', 'warning')
+            return redirect(url_for('subscription.pricing'))
+
+    study_plans = StudyPlan.query.filter_by(user_id=current_user.id).all()
+    return render_template('study_plan.html', study_plans=study_plans)
 
 @app.route('/documents')
 @login_required
@@ -97,7 +112,7 @@ def generate_interview_questions():
         client = OpenAI()
 
         # Generate interview questions with optimized prompt
-        num_questions = 3 if not current_user.is_premium else 5
+        num_questions = 5  # Changed from 3 to 5 for free users
         questions_prompt = f"""Generate {num_questions} interview questions based on this job description:
 
 Job Description: {job_description[:500]}
