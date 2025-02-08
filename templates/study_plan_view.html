@@ -25,6 +25,10 @@
                             Time: <span id="timerDisplay">00:00:00</span>
                         </div>
                     </div>
+                    <!-- Add Chat Button -->
+                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studyPlanChatModal">
+                        <i data-feather="message-circle"></i> Study Assistant
+                    </button>
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="folderDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i data-feather="folder-plus"></i> Add to Folder
@@ -194,6 +198,34 @@
     </div>
 </div>
 
+<!-- Chat Modal -->
+<div class="modal fade" id="studyPlanChatModal" tabindex="-1" aria-labelledby="studyPlanChatModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-bottom border-secondary">
+                <h5 class="modal-title" id="studyPlanChatModalLabel">Study Plan Assistant</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="chatMessages" class="chat-messages mb-3">
+                    <!-- Chat messages will be inserted here -->
+                </div>
+                <div id="errorMessage" class="alert alert-danger d-none mb-3">
+                    <!-- Error messages will be shown here -->
+                </div>
+                <form id="chatForm" class="chat-form">
+                    <div class="input-group">
+                        <input type="text" id="messageInput" class="form-control bg-dark text-light" placeholder="Ask about your study plan...">
+                        <button type="submit" class="btn btn-primary" id="sendButton">
+                            <i data-feather="send"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- New Folder Modal -->
 <div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -213,34 +245,6 @@
     </div>
 </div>
 
-<!-- Add Study Plan Chat Section -->
-<div class="modal fade" id="studyPlanChatModal" tabindex="-1" aria-labelledby="studyPlanChatModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content bg-dark">
-            <div class="modal-header border-bottom border-secondary">
-                <h5 class="modal-title" id="studyPlanChatModalLabel">Study Plan Assistant</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="chatMessages" class="chat-messages mb-3" style="height: 400px; overflow-y: auto;">
-                    <!-- Chat messages will be inserted here -->
-                </div>
-                <div id="errorMessage" class="alert alert-danger d-none mb-3">
-                    <!-- Error messages will be shown here -->
-                </div>
-                <form id="chatForm" class="chat-form">
-                    <div class="input-group">
-                        <input type="text" id="messageInput" class="form-control bg-dark text-light" placeholder="Ask about your study plan...">
-                        <button type="submit" class="btn btn-primary" id="sendButton">
-                            <i data-feather="send"></i>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Chat Styles -->
 <style>
 .chat-messages {
@@ -248,6 +252,8 @@
     flex-direction: column;
     gap: 1rem;
     padding: 1rem;
+    height: 400px;
+    overflow-y: auto;
 }
 
 .chat-message {
@@ -300,10 +306,22 @@ function updateTimer() {
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing study plan view...');
+
     // Initialize buttons
     const deleteBtn = document.getElementById('deleteStudyPlan');
     const startBtn = document.getElementById('startSession');
     const endBtn = document.getElementById('endSession');
+    const chatForm = document.getElementById('chatForm');
+    const messageInput = document.getElementById('messageInput');
+    const chatMessages = document.getElementById('chatMessages');
+    const sendButton = document.getElementById('sendButton');
+    const errorMessage = document.getElementById('errorMessage');
+
+    console.log('Delete button:', deleteBtn);
+    console.log('Start button:', startBtn);
+    console.log('End button:', endBtn);
+    console.log('Chat form:', chatForm);
 
     // Delete button handler
     if (deleteBtn) {
@@ -318,13 +336,88 @@ document.addEventListener('DOMContentLoaded', function() {
     // Start session button handler
     if (startBtn) {
         startBtn.addEventListener('click', startStudySession);
-        console.log('Start session button initialized');
     }
 
     // End session button handler
     if (endBtn) {
         endBtn.addEventListener('click', endStudySession);
-        console.log('End session button initialized');
+    }
+
+    // Chat functionality
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.classList.remove('d-none');
+        setTimeout(() => {
+            errorMessage.classList.add('d-none');
+        }, 5000);
+    }
+
+    function addMessage(message, isUser = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
+
+        const timestamp = new Date().toLocaleTimeString();
+
+        messageDiv.innerHTML = `
+            <div class="message-content">${message}</div>
+            <div class="chat-timestamp">${timestamp}</div>
+        `;
+
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function submitMessage(message) {
+        try {
+            // Disable input and button while sending
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+
+            const response = await fetch('/study-plan-chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    plan_id: {{ study_plan.id }},
+                    context: true
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                addMessage(data.response);
+            } else {
+                throw new Error(data.error || 'Failed to process your request');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError(error.message || 'Sorry, there was an error sending your message.');
+        } finally {
+            // Re-enable input and button
+            messageInput.disabled = false;
+            sendButton.disabled = false;
+            messageInput.focus();
+        }
+    }
+
+    if (chatForm) {
+        chatForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Add user message
+            addMessage(message, true);
+            messageInput.value = '';
+
+            // Submit message
+            await submitMessage(message);
+        });
     }
 
     // Initialize Feather icons
@@ -509,93 +602,5 @@ async function addToFolder(folderId, itemType, itemId) {
         alert('Failed to add to folder');
     }
 }
-
-// Add Chat Functionality
-document.addEventListener('DOMContentLoaded', function() {
-    const chatForm = document.getElementById('chatForm');
-    const messageInput = document.getElementById('messageInput');
-    const chatMessages = document.getElementById('chatMessages');
-    const sendButton = document.getElementById('sendButton');
-    const errorMessage = document.getElementById('errorMessage');
-
-    function showError(message) {
-        errorMessage.textContent = message;
-        errorMessage.classList.remove('d-none');
-        setTimeout(() => {
-            errorMessage.classList.add('d-none');
-        }, 5000);
-    }
-
-    function addMessage(message, isUser = false) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
-
-        const timestamp = new Date().toLocaleTimeString();
-
-        messageDiv.innerHTML = `
-            <div class="message-content">${message}</div>
-            <div class="chat-timestamp">${timestamp}</div>
-        `;
-
-        chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    async function submitMessage(message) {
-        try {
-            // Disable input and button while sending
-            messageInput.disabled = true;
-            sendButton.disabled = true;
-
-            const response = await fetch('/study-plan-chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    message: message,
-                    plan_id: {{ study_plan.id }},
-                    context: true
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                addMessage(data.response);
-            } else {
-                throw new Error(data.error || 'Failed to process your request');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            showError(error.message || 'Sorry, there was an error sending your message.');
-        } finally {
-            // Re-enable input and button
-            messageInput.disabled = false;
-            sendButton.disabled = false;
-            messageInput.focus();
-        }
-    }
-
-    chatForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const message = messageInput.value.trim();
-        if (!message) return;
-
-        // Add user message
-        addMessage(message, true);
-        messageInput.value = '';
-
-        // Submit message
-        await submitMessage(message);
-    });
-
-    // Initialize Feather icons for new elements
-    if (typeof feather !== 'undefined') {
-        feather.replace();
-    }
-});
-
+</script>
 {% endblock %}
