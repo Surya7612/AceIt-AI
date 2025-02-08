@@ -4,17 +4,12 @@ from typing import Optional, Dict, Any
 import requests
 from bs4 import BeautifulSoup
 import json
-from openai import OpenAI
+from extensions import openai_client  # Import the shared client
 from ocr_helper import extract_text_from_image
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-# the newest OpenAI model is "gpt-4o" which was released May 13, 2024
-# do not change this unless explicitly requested by the user
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-openai = OpenAI(api_key=OPENAI_API_KEY)
 
 class DocumentProcessor:
     def __init__(self):
@@ -39,7 +34,7 @@ class DocumentProcessor:
                 return None
 
             # Generate structured content using OpenAI
-            response = openai.chat.completions.create(
+            response = openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
                     {
@@ -94,8 +89,6 @@ class DocumentProcessor:
             )
 
             structured_content = json.loads(response.choices[0].message.content)
-
-            # Update document category based on AI classification
             return json.dumps(structured_content)
 
         except Exception as e:
@@ -143,14 +136,14 @@ class DocumentProcessor:
 
             return ' '.join(content)
         except Exception as e:
-            logger.error(f"Error processing link: {str(e)}", exc_info=True)
+            logger.error(f"Error processing link: {str(e)}")
             return None
 
     def generate_structured_content(self, raw_text: str) -> Dict[str, Any]:
         """Generate structured study content using OpenAI"""
         try:
             logger.debug("Generating structured content with OpenAI")
-            response = openai.chat.completions.create(
+            response = openai_client.chat.completions.create(
                 model="gpt-4o",  # Latest model as of May 13, 2024
                 messages=[
                     {
@@ -227,7 +220,7 @@ class DocumentProcessor:
             combined_text = "\n".join(combined_content)
 
             # Generate new structured content from combined documents
-            response = openai.chat.completions.create(
+            response = openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
                     {
