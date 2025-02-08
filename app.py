@@ -90,8 +90,16 @@ def generate_interview_questions():
             logging.error("No job description provided")
             return jsonify({'error': 'Job description is required', 'success': False}), 400
 
-        # Clear existing questions first
+        # Delete practices first to avoid FK constraint violation
         try:
+            logging.info("Cleaning up existing practice records")
+            InterviewPractice.query.filter(
+                InterviewPractice.question_id.in_(
+                    db.session.query(InterviewQuestion.id).filter_by(user_id=current_user.id)
+                )
+            ).delete(synchronize_session=False)
+            db.session.commit()
+
             logging.info("Cleaning up existing questions")
             InterviewQuestion.query.filter_by(user_id=current_user.id).delete()
             db.session.commit()
@@ -175,7 +183,7 @@ Generate exactly 5 questions."""
                         question=q['question'],
                         category=q['category'],
                         difficulty=q['difficulty'],
-                        job_description=job_description[:500],  # Add job description
+                        job_description=job_description[:500],
                         success_rate=random.randint(75, 95)
                     )
                     db.session.add(question)
@@ -275,7 +283,6 @@ def submit_answer(question_id):
 
         # Get next attempt number
         attempt_number = InterviewPractice.get_next_attempt_number(current_user.id, question_id)
-
 
         # Create practice record
         practice = InterviewPractice(
