@@ -23,7 +23,8 @@ class User(UserMixin, db.Model):
     study_plans = db.relationship('StudyPlan', backref='user', lazy=True)
     documents = db.relationship('Document', backref='user', lazy=True)
     folders = db.relationship('Folder', backref='user', lazy=True)
-    study_sessions = db.relationship('StudySession', backref='user', lazy=True)
+    # Update the study_sessions relationship to avoid naming conflict
+    study_sessions = db.relationship('StudySession', backref='student', lazy=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
