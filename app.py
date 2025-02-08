@@ -709,9 +709,9 @@ def create_study_plan():
         from ai_helper import generate_study_schedule
         logging.info("Starting study plan creation process")
 
-        # Get form data
+        # Get form data and log it
         data = request.form.to_dict()
-        logging.debug(f"Received form data: {data}")
+        logging.info(f"Received form data: {data}")
 
         # Basic validation
         required_fields = ['topic', 'priority', 'daily_time', 'completion_date', 'difficulty', 'goals']
@@ -725,8 +725,10 @@ def create_study_plan():
             priority = int(data['priority'])
             daily_time = int(data['daily_time'])
             completion_target = datetime.strptime(data['completion_date'], '%Y-%m-%d')
+            logging.info(f"Parsed values - priority: {priority}, daily_time: {daily_time}, completion_target: {completion_target}")
 
             # Generate AI study schedule
+            logging.info("Calling generate_study_schedule")
             schedule = generate_study_schedule(
                 topic=data['topic'],
                 priority=priority,
@@ -734,11 +736,12 @@ def create_study_plan():
                 completion_date=data['completion_date'],
                 difficulty=data['difficulty'],
                 goals=data['goals'],
-                documents=[],  # Initially empty list for documents
-                link=data.get('link')
+                documents=[],
+                link=data.get('link', '')
             )
+            logging.info(f"Generated schedule: {json.dumps(schedule)}")
 
-            # Create study plan with generated schedule
+            # Create study plan object
             study_plan = StudyPlan(
                 user_id=current_user.id,
                 title=data['topic'],
@@ -748,14 +751,12 @@ def create_study_plan():
                 completion_target=completion_target,
                 difficulty_level=data['difficulty']
             )
+            logging.info(f"Created study plan object: {study_plan.title}")
 
-            # Log the study plan data before saving
-            logging.info(f"Attempting to save study plan: {study_plan.title}")
-
+            # Save to database
             db.session.add(study_plan)
             db.session.commit()
-
-            logging.info(f"Successfully created study plan with ID: {study_plan.id}")
+            logging.info(f"Successfully saved study plan with ID: {study_plan.id}")
 
             return jsonify({
                 'success': True,

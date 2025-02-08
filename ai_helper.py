@@ -30,8 +30,7 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
 3. 3-4 detailed study sections with examples
 4. 4-6 practice questions with detailed answers
 
-Format your response as a structured plan with sections, but do not use strict JSON formatting.
-Include practical examples and exercises where appropriate."""
+Format your response as a structured plan with sections."""
 
         # Create a study request with clear indication of content source
         base_request = f"""Create a detailed study plan with these parameters:
@@ -44,11 +43,9 @@ Goals: {goals}
 """
 
         if has_materials:
-            study_request = base_request + f"Use this context to create relevant content: {context}"
+            study_request = base_request + f"\nUse this context to create relevant content:\n{context}"
         else:
-            study_request = base_request + """Since no study materials were provided, generate a comprehensive curriculum 
-                covering the fundamental concepts and best practices for this topic. Include industry-standard examples 
-                and practical applications."""
+            study_request = base_request + "\nSince no study materials were provided, generate a comprehensive curriculum covering the fundamental concepts and best practices for this topic."
 
         messages = [
             {"role": "system", "content": system_message},
@@ -65,20 +62,18 @@ Goals: {goals}
         content = response.choices[0].message.content
         logging.debug(f"Generated content: {content}")
 
-        # Convert the response into a structured format
+        # Create a simple structured format
         schedule = {
             "title": topic,
             "goals": goals,
-            "summary": content,
-            "sections": [],
-            "practice_questions": []
+            "content": content
         }
 
         return schedule
 
     except Exception as e:
-        logging.error(f"Failed to generate study schedule: {e}")
-        raise
+        logging.error(f"Failed to generate study schedule: {str(e)}")
+        raise Exception(f"Failed to generate study schedule: {str(e)}")
 
 def get_relevant_context(query, user_id=1):
     """Retrieve relevant context from user's documents and study plans"""
