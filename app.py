@@ -20,10 +20,29 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(subscription_blueprint)
 
+# Update index route to include study plans
 @app.route('/')
 def index():
     """Render the home page"""
-    return render_template('index.html')
+    try:
+        from models import Document, StudyPlan
+
+        # Get recent documents and study plans if user is logged in
+        recent_docs = []
+        recent_plans = []
+        if current_user.is_authenticated:
+            recent_docs = Document.query.filter_by(
+                user_id=current_user.id
+            ).order_by(Document.created_at.desc()).limit(3).all()
+
+            recent_plans = StudyPlan.query.filter_by(
+                user_id=current_user.id
+            ).order_by(StudyPlan.created_at.desc()).limit(3).all()
+
+        return render_template('index.html', recent_docs=recent_docs, recent_plans=recent_plans)
+    except Exception as e:
+        logging.error(f"Error loading home page: {str(e)}")
+        return render_template('index.html', recent_docs=[], recent_plans=[])
 
 @app.route('/study-plan/<int:plan_id>')
 @login_required
@@ -37,6 +56,15 @@ def view_study_plan(plan_id):
         if study_plan.user_id != current_user.id:
             flash('You do not have permission to view this study plan.', 'error')
             return redirect(url_for('study_plan'))
+
+        # Add Jinja2 filter for JSON parsing
+        @app.template_filter('from_json')
+        def from_json_filter(value):
+            try:
+                return json.loads(value) if value else None
+            except Exception as e:
+                logging.error(f"JSON parsing error: {str(e)}")
+                return None
 
         return render_template('study_plan_view.html', study_plan=study_plan)
     except Exception as e:

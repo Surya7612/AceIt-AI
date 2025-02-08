@@ -9,64 +9,50 @@ from models import Document, StudyPlan
 def generate_study_schedule(topic, priority, daily_time, completion_date, difficulty, goals):
     """Generate an optimized study schedule based on user preferences"""
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4",  # Using standard gpt-4 model
-            messages=[
-                {
-                    "role": "system",
-                    "content": """Create an optimized study schedule based on the provided parameters.
-                    Return a JSON object with the following structure:
-                    {
-                        "title": "Study plan title",
-                        "daily_sessions": [
-                            {
-                                "day": "1",
-                                "topics": ["Topic 1", "Topic 2"],
-                                "duration_minutes": number,
-                                "activities": [
-                                    {
-                                        "type": "study|practice|review",
-                                        "topic": "Specific topic",
-                                        "duration": number,
-                                        "description": "Activity description"
-                                    }
-                                ]
-                            }
-                        ],
-                        "milestones": [
-                            {
-                                "day": number,
-                                "description": "Milestone description",
-                                "assessment": "How to verify completion"
-                            }
-                        ],
-                        "difficulty_level": "beginner|intermediate|advanced",
-                        "estimated_completion_days": number,
-                        "daily_time_required": number,
-                        "prerequisites": ["Prerequisite 1", "Prerequisite 2"],
-                        "learning_path": {
-                            "phase1": {
-                                "focus": "What to focus on",
-                                "duration_days": number
-                            }
-                        }
-                    }"""
-                },
-                {
-                    "role": "user",
-                    "content": f"""Generate a study schedule with these parameters:
+        messages = [
+            {
+                "role": "system",
+                "content": """You are a study plan expert. Create an optimized schedule based on the parameters.
+                    Return a JSON object with sections and practice questions."""
+            },
+            {
+                "role": "user", 
+                "content": f"""Create a detailed study plan with these parameters:
                     Topic: {topic}
                     Priority Level: {priority} (1=High, 2=Medium, 3=Low)
                     Daily Study Time: {daily_time} minutes
                     Target Completion: {completion_date}
                     Difficulty: {difficulty}
-                    Goals: {goals}"""
-                }
-            ],
-            response_format={"type": "json_object"}
+                    Goals: {goals}
+
+                    The plan should include:
+                    - A summary of the topic and goals
+                    - Key concepts to master
+                    - Detailed study sections with content and examples
+                    - Practice questions with answers and explanations"""
+            }
+        ]
+
+        response = openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=messages,
+            temperature=0.7
         )
 
-        schedule = json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        # Parse the response into JSON if it isn't already
+        try:
+            schedule = json.loads(content)
+        except json.JSONDecodeError:
+            # If the response isn't JSON, create a structured format
+            schedule = {
+                "title": topic,
+                "goals": goals,
+                "summary": content,
+                "sections": [],
+                "practice_questions": []
+            }
+
         return schedule
     except Exception as e:
         logging.error(f"Failed to generate study schedule: {e}")
