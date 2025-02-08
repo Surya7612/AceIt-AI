@@ -20,6 +20,15 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(subscription_blueprint)
 
+# Add the JSON filter at the application level
+@app.template_filter('from_json')
+def from_json_filter(value):
+    try:
+        return json.loads(value) if value else None
+    except Exception as e:
+        logging.error(f"JSON parsing error: {str(e)}")
+        return None
+
 # Update index route to include study plans
 @app.route('/')
 def index():
@@ -56,15 +65,6 @@ def view_study_plan(plan_id):
         if study_plan.user_id != current_user.id:
             flash('You do not have permission to view this study plan.', 'error')
             return redirect(url_for('study_plan'))
-
-        # Add Jinja2 filter for JSON parsing
-        @app.template_filter('from_json')
-        def from_json_filter(value):
-            try:
-                return json.loads(value) if value else None
-            except Exception as e:
-                logging.error(f"JSON parsing error: {str(e)}")
-                return None
 
         return render_template('study_plan_view.html', study_plan=study_plan)
     except Exception as e:

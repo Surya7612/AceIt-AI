@@ -44,6 +44,21 @@
                         <label for="goals" class="form-label">Learning Goals</label>
                         <textarea class="form-control" id="goals" name="goals" rows="3" required></textarea>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Study Materials (Optional)</label>
+                        <div class="input-group mb-2">
+                            <input type="file" class="form-control" id="files" name="files" multiple
+                                   accept=".pdf,.png,.jpg,.jpeg">
+                        </div>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="link" name="link"
+                                   placeholder="Or paste a URL to study material">
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            Upload files or paste URLs to create an AI-optimized study plan.
+                            If no materials are provided, AI will generate content based on your topic.
+                        </small>
+                    </div>
                     <button type="submit" class="btn btn-primary">
                         <i data-feather="plus-circle"></i> Create Plan
                     </button>
@@ -82,7 +97,7 @@
                                         </div>
                                     </div>
                                     <div class="text-end">
-                                        <a href="{{ url_for('view_study_plan', plan_id=plan.id) }}" 
+                                        <a href="{{ url_for('view_study_plan', plan_id=plan.id) }}"
                                            class="btn btn-sm btn-primary">
                                             View Plan
                                         </a>
