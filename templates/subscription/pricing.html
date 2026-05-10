@@ -60,7 +60,14 @@
 
 <script>
 function subscribe(planType) {
-    fetch(`/subscribe/${planType}`)
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    fetch(`/subscribe/${planType}`, {
+        credentials: 'same-origin',
+        headers: {
+            'Accept': 'application/json',
+            'X-CSRFToken': csrf,
+        },
+    })
         .then(response => response.json())
         .then(data => {
             if (data.error) {

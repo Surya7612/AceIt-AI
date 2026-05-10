@@ -39,7 +39,8 @@ dump.rdb
 *.swp
 *.swo
 
-# Replit specific
+# Local platform files (optional)
+.replit
 .config/
 .upm/
 .cache/
@@ -60,4 +61,5 @@ instance/
 
 # Virtual Environment
 venv/
+.venv/
 ENV/

@@ -26,17 +26,22 @@ def process_document_task(doc_id):
     try:
         from app import app
         with app.app_context():
-            document = Document.query.get(doc_id)
+            document = db.session.get(Document, doc_id)
             if not document:
                 logging.error(f"Document {doc_id} not found")
                 return
 
+            structured_content = None
+            upload_folder = app.config['UPLOAD_FOLDER']
+
             if document.file_type == 'image':
-                structured_content = doc_processor.process_document('image', document.filename)
+                path = os.path.join(upload_folder, document.filename)
+                structured_content = doc_processor.process_document('image', path)
             elif document.file_type == 'link':
                 structured_content = doc_processor.process_document('link', document.content)
             elif document.file_type == 'pdf':
-                structured_content = doc_processor.process_document('pdf', document.filename)
+                path = os.path.join(upload_folder, document.filename)
+                structured_content = doc_processor.process_document('pdf', path)
 
             if structured_content:
                 content_dict = json.loads(structured_content)
@@ -58,7 +63,10 @@ def combine_documents_task(doc_ids, user_id):
     try:
         from app import app
         with app.app_context():
-            documents = Document.query.filter(Document.id.in_(doc_ids)).all()
+            documents = Document.query.filter(
+                Document.id.in_(doc_ids),
+                Document.user_id == user_id,
+            ).all()
             combined_content = doc_processor.combine_documents(documents)
             return combined_content
 

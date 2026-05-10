@@ -113,10 +113,13 @@ document.addEventListener('DOMContentLoaded', function() {
         messageInput.value = '';
 
         try {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
             const response = await fetch('/chat', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf,
+                    'Accept': 'application/json',
                 },
                 body: JSON.stringify({
                     message: message,

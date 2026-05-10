@@ -264,6 +264,11 @@
 <script>
 let currentQuestionId = null;
 
+function csrfToken() {
+    const m = document.querySelector('meta[name="csrf-token"]');
+    return m ? m.getAttribute('content') : '';
+}
+
 function handleFileUpload() {
     const fileInput = document.getElementById('resumeFile');
     const resumeTextArea = document.getElementById('resume');
@@ -324,6 +329,8 @@ function generateQuestions() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken(),
+            'Accept': 'application/json',
         },
         body: JSON.stringify({
             job_description: jobDescription,
@@ -500,6 +507,10 @@ function submitAnswer() {
 
     fetch(`/interview-practice/${currentQuestionId}/answer`, {
         method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken(),
+            'Accept': 'application/json',
+        },
         body: formData
     })
     .then(response => response.json())
@@ -578,7 +589,11 @@ function handlePremiumFeatureError(error) {
 
 function exportData() {
     fetch('/interview-practice/export', {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken(),
+            'Accept': 'application/json',
+        },
     })
     .then(response => response.json())
     .then(data => {
@@ -608,7 +623,11 @@ function clearData() {
     }
 
     fetch('/interview-practice/clear', {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken(),
+            'Accept': 'application/json',
+        },
     })
     .then(response => response.json())
     .then(data => {

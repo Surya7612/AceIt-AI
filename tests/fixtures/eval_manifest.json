@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "description": "Audit trail for offline eval / regression fixtures (Phase 3).",
+  "fixtures": [
+    "study_schedule_valid.json",
+    "rag_expectations.json"
+  ],
+  "rag_score_hints": [
+    "bm25_lexical",
+    "hybrid_bm25_openai_embedding",
+    "hybrid_bm25_openai_embedding+expand",
+    "hybrid_bm25_openai_embedding+expand+llm_rerank"
+  ]
+}

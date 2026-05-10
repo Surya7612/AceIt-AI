@@ -1,0 +1,25 @@
+{
+  "title": "System design interview sprint",
+  "summary": "Two-week focus on scalability and reliability patterns.",
+  "difficulty_level": "intermediate",
+  "estimated_total_hours": 24,
+  "key_concepts": [
+    {"name": "Load balancing", "description": "Layer 4 vs Layer 7 tradeoffs.", "priority": "high", "estimated_time": 120},
+    {"name": "Caching", "description": "CDN, Redis, and invalidation.", "priority": "high", "estimated_time": 90},
+    {"name": "Data partitioning", "description": "Sharding vs federation basics.", "priority": "medium", "estimated_time": 90}
+  ],
+  "learning_path": [
+    {
+      "day": 1,
+      "topics": ["Fundamentals"],
+      "activities": [{"type": "study", "description": "Read DDIA chapter 1", "duration_minutes": 45}]
+    }
+  ],
+  "practice_questions": [
+    {"question": "Design URL shortener", "answer": "Discuss hashing and redirection.", "difficulty": "medium"},
+    {"question": "Design chat service", "answer": "WebSockets and presence.", "difficulty": "medium"},
+    {"question": "Design feed", "answer": "Fan-out strategies.", "difficulty": "medium"},
+    {"question": "Scaling reads", "answer": "Replicas and caches.", "difficulty": "easy"},
+    {"question": "Consistency model", "answer": "CAP intuition.", "difficulty": "easy"}
+  ]
+}

@@ -2,9 +2,11 @@ import os
 import json
 import logging
 from datetime import datetime, timedelta
-from extensions import openai_client
+from extensions import db, openai_client
 from cache_helper import cache_data, get_cached_data
 from models import Document, StudyPlan
+from openai_usage import timed_completion
+from schema_eval import validate_study_schedule_json
 
 def generate_study_schedule(topic, priority, daily_time, completion_date, difficulty, goals, documents=None, link=None):
     """Generate an optimized study plan based on user preferences and optional documents"""
@@ -16,7 +18,10 @@ def generate_study_schedule(topic, priority, daily_time, completion_date, diffic
         if documents:
             for doc in documents:
                 if doc.structured_content:
-                    content = json.loads(doc.structured_content)
+                    try:
+                        content = json.loads(doc.structured_content)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
                     context += f"\nDocument: {doc.original_filename}\n{content.get('summary', '')}\n"
                     has_materials = True
 
@@ -99,11 +104,15 @@ Requirements:
             messages[1]["content"] += f"\nUse this additional context:\n{context}"
 
         logging.info("Generating study plan with OpenAI")
-        response = openai_client.chat.completions.create(
-            model="gpt-4",
-            messages=messages,
-            temperature=0.7,
-            max_tokens=2000
+        response = timed_completion(
+            "generate_study_schedule",
+            lambda: openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=2000,
+                response_format={"type": "json_object"},
+            ),
         )
 
         logging.debug(f"OpenAI response: {response.choices[0].message.content}")
@@ -113,16 +122,9 @@ Requirements:
             content = response.choices[0].message.content
             schedule = json.loads(content)
 
-            # Validate required fields
-            required_fields = ["title", "summary", "key_concepts", "learning_path", "practice_questions"]
-            if not all(field in schedule for field in required_fields):
-                raise ValueError("Missing required fields in schedule")
-
-            # Validate content requirements
-            if len(schedule["key_concepts"]) < 3:
-                raise ValueError("Not enough key concepts")
-            if len(schedule["practice_questions"]) < 5:
-                raise ValueError("Not enough practice questions")
+            ok, err = validate_study_schedule_json(schedule)
+            if not ok:
+                raise ValueError(err or "invalid schedule")
 
             return schedule
 
@@ -138,69 +140,55 @@ Requirements:
         raise
 
 def get_relevant_context(query, user_id=1):
-    """Retrieve relevant context from user's documents and study plans"""
-    cache_key = f"context_{user_id}_{hash(query)}"
+    """BM25-ranked chunks over user documents + study plans (bounded context, citeable refs)."""
+    from rag_context import material_signature, retrieve_ranked_context
+
+    sig = material_signature(user_id)
+    cache_key = f"rag_ctx_{user_id}_{hash(query)}_{hash(sig)}"
     cached_context = get_cached_data(cache_key)
     if cached_context:
         return cached_context
 
-    context_data = []
-    # Get relevant documents
-    documents = Document.query.filter_by(user_id=user_id, processed=True).all()
-    study_plans = StudyPlan.query.filter_by(user_id=user_id).all()
-
-    # Extract content from documents
-    for doc in documents:
-        if doc.structured_content:
-            content = json.loads(doc.structured_content)
-            context_data.append({
-                'type': 'document',
-                'title': content.get('title', doc.original_filename),
-                'content': content.get('summary', '')
-            })
-
-    # Extract content from study plans
-    for plan in study_plans:
-        if plan.content:
-            content = json.loads(plan.content)
-            context_data.append({
-                'type': 'study_plan',
-                'title': plan.title,
-                'content': content.get('summary', '')
-            })
-
+    context_data = retrieve_ranked_context(query, user_id)
     if context_data:
-        cache_data(cache_key, context_data, 3600)  # Cache for 1 hour
+        cache_data(cache_key, context_data, 900)
     return context_data
 
 def chat_response(message, context=None, tutor_mode=False, user_id=1):
     """Generate chat responses with optional tutor mode using document context"""
     try:
-        messages = [
-            {
-                "role": "system",
-                "content": "You are a helpful study assistant. "
-                + ("As a tutor, reference relevant materials from the user's documents and provide detailed explanations. "
-                   if tutor_mode else "Provide clear, concise answers to help students understand concepts better.")
-            }
-        ]
+        sys_intro = (
+            "You are a helpful study assistant for technical interview preparation. "
+            + (
+                "When passages from the user's library are provided, ground factual claims in them "
+                "and cite bracket ids exactly as given (e.g. [doc:3#1]). "
+                "If the library does not support an answer, say so clearly."
+                if context
+                else (
+                    "As a tutor, reference relevant materials from the user's documents and provide detailed explanations. "
+                    if tutor_mode
+                    else "Provide clear, concise answers to help students understand concepts better."
+                )
+            )
+        )
 
-        # Add context if provided
-        if context and (tutor_mode or "document" in message.lower() or "uploaded" in message.lower()):
-            messages.append({
-                "role": "system",
-                "content": context
-            })
+        messages = [{"role": "system", "content": sys_intro}]
+
+        from rag_context import should_attach_library_context
+
+        if context and should_attach_library_context(message, tutor_mode):
+            messages.append({"role": "system", "content": context})
 
         messages.append({"role": "user", "content": message})
 
-        # Enhanced logging for debugging
-        logging.debug(f"Sending chat request with tutor_mode={tutor_mode}")
-        logging.debug(f"Context available: {bool(context)}")
+        logging.debug("Sending chat request tutor_mode=%s context=%s", tutor_mode, bool(context))
 
-        response = openai_client.chat.completions.create(
-            model="gpt-4",  # Using standard gpt-4 model
-            messages=messages
+        response = timed_completion(
+            "chat_response",
+            lambda: openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=messages,
+            ),
         )
         return response.choices[0].message.content
     except Exception as e:
@@ -214,32 +202,37 @@ def update_study_plan(plan_id, updates):
         if not study_plan:
             raise ValueError("Study plan not found")
 
-        current_schedule = study_plan.get_schedule()
+        current_schedule = study_plan.get_content()
         if not current_schedule:
             return False
 
-        response = openai_client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {
-                    "role": "system",
-                    "content": """Update the study schedule based on the provided changes while maintaining overall learning objectives.
-                    Optimize the schedule to accommodate the changes while ensuring effective learning progression."""
-                },
-                {
-                    "role": "user",
-                    "content": f"""Current schedule: {json.dumps(current_schedule)}
+        response = timed_completion(
+            "update_study_plan",
+            lambda: openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """Update the study schedule based on the provided changes while maintaining overall learning objectives.
+                    Optimize the schedule to accommodate the changes while ensuring effective learning progression.
+                    Respond with a JSON object using the same schema as the current schedule."""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"""Current schedule: {json.dumps(current_schedule)}
                     Requested updates: {json.dumps(updates)}
                     Daily study time: {study_plan.daily_study_time} minutes
                     Priority level: {study_plan.priority}
                     Target completion: {study_plan.completion_target}"""
-                }
-            ],
-            response_format={"type": "json_object"}
+                    },
+                ],
+                response_format={"type": "json_object"},
+            ),
         )
 
         updated_schedule = json.loads(response.choices[0].message.content)
-        study_plan.update_schedule(updated_schedule)
+        study_plan.update_content(updated_schedule)
+        db.session.commit()
         return True
 
     except Exception as e:

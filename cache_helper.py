@@ -1,11 +1,13 @@
+import os
 import redis
 import json
 import logging
 from functools import wraps
 from datetime import datetime, timedelta
 
-# Initialize Redis client
-redis_client = redis.Redis(host='localhost', port=6379, db=0)
+# Prefer REDIS_URL (Railway, Docker, prod); fall back to local default
+_redis_url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+redis_client = redis.from_url(_redis_url)
 
 def cache_data(key, data, expiry_seconds=3600):
     """Cache data with Redis"""

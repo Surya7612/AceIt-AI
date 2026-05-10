@@ -1,14 +1,20 @@
-import os
+import json
 import logging
-from flask import Flask, request, jsonify, render_template, flash, redirect, url_for
+import os
+import random
+from datetime import datetime
+
+from flask import request, jsonify, render_template, flash, redirect, url_for
 from werkzeug.utils import secure_filename
-from extensions import app, db, openai_client  # Import the shared client
+from extensions import app, db, normalize_database_url, openai_client  # Import the shared client
+from openai_usage import timed_completion
+
+import models  # noqa: F401 — register SQLAlchemy models / Alembic metadata
 from auth import auth as auth_blueprint
 from flask_login import login_required, current_user
-from subscription import subscription as subscription_blueprint, premium_required
+from subscription import subscription as subscription_blueprint
+from health import health_bp
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Ensure upload directory exists
@@ -17,14 +23,10 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Register blueprint
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(subscription_blueprint)
-
-# Make sure all app configs are loaded before running
-if not app.secret_key:
-    app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev_key")
-    logger.info("Setting secret key from environment")
+app.register_blueprint(health_bp)
 
 if not app.config["SQLALCHEMY_DATABASE_URI"]:
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+    app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(os.environ.get("DATABASE_URL"))
     logger.info("Setting database URI from environment")
 
 # Log application startup
@@ -41,6 +43,11 @@ def from_json_filter(value):
     except Exception as e:
         logger.error(f"JSON parsing error: {str(e)}") # Updated logger
         return None
+
+@app.template_filter('parse_json')
+def parse_json_filter(value):
+    """Alias used by document_view.html."""
+    return from_json_filter(value)
 
 # Update index route to include study plans
 @app.route('/')
@@ -218,7 +225,147 @@ def delete_study_plan(plan_id):
 @login_required
 def documents():
     """Render the documents page"""
-    return render_template('documents.html')
+    from models import Document
+    documents_list = Document.query.filter_by(user_id=current_user.id).order_by(
+        Document.created_at.desc()
+    ).all()
+    return render_template('documents.html', documents=documents_list)
+
+@app.route('/documents/<int:doc_id>')
+@login_required
+def view_document(doc_id):
+    """Study material view for a processed document."""
+    from models import Document
+    doc = Document.query.get_or_404(doc_id)
+    if doc.user_id != current_user.id:
+        flash('You do not have permission to view this document.', 'error')
+        return redirect(url_for('documents'))
+    return render_template(
+        'document_view.html',
+        document=doc,
+        content=doc.structured_content,
+    )
+
+@app.route('/upload', methods=['POST'])
+@login_required
+def upload_documents():
+    """Accept PDF/image uploads and optional link; queue background processing."""
+    from models import Document
+
+    try:
+        from celery_worker import process_document_task
+    except ImportError:
+        process_document_task = None
+
+    files = request.files.getlist('files')
+    link = (request.form.get('link') or '').strip()
+    has_file = any(f and getattr(f, 'filename', '') for f in files)
+
+    if not has_file and not link:
+        return jsonify({'success': False, 'error': 'No files or link provided'}), 400
+
+    created_ids = []
+    upload_folder = app.config['UPLOAD_FOLDER']
+    os.makedirs(upload_folder, exist_ok=True)
+
+    for file in files:
+        if not file or not file.filename:
+            continue
+        orig_name = file.filename
+        safe_base = secure_filename(orig_name)
+        if not safe_base:
+            continue
+        ext = safe_base.rsplit('.', 1)[-1].lower() if '.' in safe_base else ''
+        if ext == 'pdf':
+            ft = 'pdf'
+        elif ext in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
+            ft = 'image'
+        else:
+            return jsonify({'success': False, 'error': f'Unsupported file type: .{ext}'}), 400
+
+        stored = secure_filename(
+            f"{current_user.id}_{int(datetime.utcnow().timestamp() * 1000)}_{safe_base}"
+        )
+        path = os.path.join(upload_folder, stored)
+        file.save(path)
+
+        doc = Document(
+            user_id=current_user.id,
+            filename=stored,
+            original_filename=orig_name[:255],
+            file_type=ft,
+            processed=False,
+        )
+        db.session.add(doc)
+        db.session.flush()
+        created_ids.append(doc.id)
+
+    if link:
+        doc = Document(
+            user_id=current_user.id,
+            filename='link',
+            original_filename=link[:255],
+            file_type='link',
+            content=link,
+            processed=False,
+        )
+        db.session.add(doc)
+        db.session.flush()
+        created_ids.append(doc.id)
+
+    db.session.commit()
+
+    for doc_id in created_ids:
+        if process_document_task:
+            try:
+                process_document_task.delay(doc_id)
+            except Exception as exc:
+                logger.warning("Could not queue document %s for processing: %s", doc_id, exc)
+
+    return jsonify({'success': True, 'queued': len(created_ids)})
+
+@app.route('/documents/combine', methods=['POST'])
+@login_required
+def combine_documents_route():
+    """Merge selected processed documents into one structured study document."""
+    from models import Document
+    from document_processor import DocumentProcessor
+
+    data = request.get_json(silent=True) or {}
+    ids = data.get('doc_ids')
+    if not ids:
+        return jsonify({'success': False, 'error': 'No documents selected'}), 400
+
+    docs = Document.query.filter(
+        Document.id.in_(ids),
+        Document.user_id == current_user.id,
+        Document.processed.is_(True),
+    ).all()
+    if len(docs) != len(ids):
+        return jsonify({'success': False, 'error': 'Invalid selection or document still processing'}), 400
+
+    try:
+        processor = DocumentProcessor()
+        combined = processor.combine_documents(docs)
+        structured = json.dumps(combined)
+        title = (combined.get('title') or 'Combined study material')[:200]
+        new_doc = Document(
+            user_id=current_user.id,
+            filename=f'combined_{int(datetime.utcnow().timestamp())}',
+            original_filename=f'{title}.json',
+            file_type='text',
+            content=structured[:50000] if len(structured) > 50000 else structured,
+            structured_content=structured,
+            processed=True,
+            category='Combined',
+        )
+        db.session.add(new_doc)
+        db.session.commit()
+        return jsonify({'success': True, 'document_id': new_doc.id})
+    except Exception as e:
+        logger.exception("combine_documents_route failed")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/folders')
 @login_required
@@ -500,6 +647,7 @@ Generate exactly 5 questions."""
         return jsonify({'error': str(e), 'success': False}), 500
 
 @app.route('/test-openai')
+@login_required
 def test_openai():
     """Test OpenAI API connection"""
     try:
@@ -848,14 +996,21 @@ def chat():
         tutor_mode = data.get('tutor_mode', False)
         logger.info(f"Processing chat message, tutor mode: {tutor_mode}") # Updated logger
 
-        # Get relevant context if tutor mode is enabled
+        # BM25-ranked excerpts when tutor mode or user refers to library materials
         context = None
-        if tutor_mode:
+        from rag_context import format_context_block, should_attach_library_context
+
+        if should_attach_library_context(message, tutor_mode):
             from ai_helper import get_relevant_context
-            context = get_relevant_context(message, current_user.id)
-            if context:
-                context = "Here's some relevant information from the user's materials:\n" + \
-                         "\n".join([f"From {item['title']}:\n{item['content']}" for item in context])
+
+            items = get_relevant_context(message, current_user.id)
+            if items:
+                context = (
+                    "Use ONLY the excerpts below for factual claims about the user's own materials; "
+                    "cite bracket source ids exactly (e.g. [doc:3#1]). "
+                    "If the excerpts do not contain the answer, say so.\n\n"
+                    + format_context_block(items)
+                )
 
         # Generate response using AI helper
         from ai_helper import chat_response
@@ -885,11 +1040,6 @@ def chat():
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}") # Updated logger
         return jsonify({'error': str(e)}), 500
-
-# Initialize database
-with app.app_context():
-    import models
-    db.create_all()
 
 @app.route('/study-plan-chat', methods=['POST'])
 @login_required
@@ -931,6 +1081,20 @@ Content from the study plan:
 
 {json.dumps(content, indent=2)}"""
 
+            from ai_helper import get_relevant_context
+            from rag_context import format_context_block, should_attach_library_context
+
+            if should_attach_library_context(message, False):
+                lib_items = get_relevant_context(message, current_user.id)
+                if lib_items:
+                    lib_block = format_context_block(lib_items)
+                    extra = (
+                        "\n\nRelated ranked excerpts from your document library "
+                        "(cite bracket ids when quoting):\n\n"
+                        + lib_block
+                    )
+                    context = (context + extra) if context else extra
+
             messages = [
                 {"role": "system", "content": "You are a helpful study assistant. "
                  "As a tutor, reference relevant materials from the user's documents "
@@ -945,9 +1109,12 @@ Content from the study plan:
             logger.debug(f"Sending chat request with tutor_mode={bool(context)}") # Updated logger
             logger.debug(f"Context available: {bool(context)}") # Updated logger
 
-            response = openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=messages,
+            response = timed_completion(
+                "study_plan_chat",
+                lambda: openai_client.chat.completions.create(
+                    model="gpt-4",
+                    messages=messages,
+                ),
             )
 
             ai_response = response.choices[0].message.content
@@ -979,5 +1146,3 @@ Content from the study plan:
     except Exception as e:
         logger.error(f"Error in chat handler: {str(e)}") # Updated logger
         return jsonify({'error': str(e)}), 500
-import json
-from datetime import datetime

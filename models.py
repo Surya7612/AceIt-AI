@@ -86,7 +86,7 @@ class StudyPlan(db.Model):
         """Get parsed content data"""
         try:
             return json.loads(self.content) if self.content else None
-        except:
+        except (json.JSONDecodeError, TypeError, ValueError):
             return None
 
     def update_content(self, content_data):
@@ -147,7 +147,7 @@ class Document(db.Model):
         """Get structured content as a Python dictionary"""
         try:
             return json.loads(self.structured_content) if self.structured_content else None
-        except:
+        except (json.JSONDecodeError, TypeError, ValueError):
             return None
 
 class ChatHistory(db.Model):
@@ -244,3 +244,16 @@ class InterviewPractice(db.Model):
             question_id=question_id
         ).order_by(cls.attempt_number.desc()).first()
         return (latest.attempt_number + 1) if latest else 1
+
+
+class ChunkEmbeddingCache(db.Model):
+    """Server-side cache for OpenAI embedding vectors (survives Redis eviction)."""
+
+    __tablename__ = "chunk_embedding_cache"
+
+    id = db.Column(db.Integer, primary_key=True)
+    cache_key = db.Column(db.String(192), unique=True, nullable=False, index=True)
+    vector_json = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (Index("idx_chunk_embedding_cache_created_at", "created_at"),)

@@ -1,0 +1,11 @@
+Alembic migrations for AceIt AI (Flask-Migrate).
+
+Apply pending revisions:
+
+  flask db upgrade
+
+Create a new revision after model changes:
+
+  flask db migrate -m "describe change"
+
+Ensure FLASK_APP is set (see repo `.flaskenv`) and DATABASE_URL is configured.

@@ -1,6 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     feather.replace();
 
+    function csrfToken() {
+        const m = document.querySelector('meta[name="csrf-token"]');
+        return m ? m.getAttribute('content') : '';
+    }
+
     // File upload handling
     const uploadForm = document.getElementById('uploadForm');
     if (uploadForm) {
@@ -33,6 +38,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('Sending upload request...');
                 const response = await fetch('/upload', {
                     method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken(),
+                        'Accept': 'application/json',
+                    },
                     body: formData
                 });
 
@@ -66,6 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('Sending study plan request...');
                 const response = await fetch('/study-plan', {  // Changed from /study-plan/new to /study-plan
                     method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken(),
+                        'Accept': 'application/json',
+                    },
                     body: formData
                 });
 
@@ -104,7 +117,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch('/chat', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken(),
+                        'Accept': 'application/json',
                     },
                     body: JSON.stringify({ message })
                 });

@@ -1,0 +1,10 @@
+{
+  "_comment": "Golden regression hooks for retrieval scoring narratives (no live API).",
+  "bm25_queries": [
+    {
+      "query": "python asyncio event loop concurrency",
+      "corpus_snippets_should_rank_higher": ["asyncio", "event loop"],
+      "corpus_snippets_should_rank_lower": ["carbonara", "recipe"]
+    }
+  ]
+}

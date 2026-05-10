@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import json
 from extensions import openai_client  # Import the shared client
+from openai_usage import timed_completion
 from ocr_helper import extract_text_from_image
 
 # Setup logging
@@ -34,9 +35,11 @@ class DocumentProcessor:
                 return None
 
             # Generate structured content using OpenAI
-            response = openai_client.chat.completions.create(
-                model="gpt-4",  # Using standard gpt-4 model
-                messages=[
+            response = timed_completion(
+                "document_structure",
+                lambda: openai_client.chat.completions.create(
+                    model="gpt-4",  # Using standard gpt-4 model
+                    messages=[
                     {
                         "role": "system",
                         "content": """Analyze the provided content and create a structured study document with the following JSON format:
@@ -84,7 +87,9 @@ class DocumentProcessor:
                         """
                     },
                     {"role": "user", "content": raw_text}
-                ]
+                    ],
+                    response_format={"type": "json_object"},
+                ),
             )
 
             structured_content = json.loads(response.choices[0].message.content)
@@ -94,11 +99,22 @@ class DocumentProcessor:
             logger.error(f"Error processing document: {str(e)}", exc_info=True)
             return None
 
-    def process_pdf(self, content: str) -> Optional[str]:
-        """Process PDF content - placeholder for PDF processing"""
-        # TODO: Implement PDF processing
-        logger.warning("PDF processing not yet implemented")
-        return content
+    def process_pdf(self, file_path: str) -> Optional[str]:
+        """Extract plain text from a PDF file."""
+        try:
+            from pypdf import PdfReader
+
+            reader = PdfReader(file_path)
+            parts = []
+            for page in reader.pages:
+                parts.append(page.extract_text() or "")
+            text = "\n".join(parts).strip()
+            if not text:
+                logger.warning("No text extracted from PDF: %s", file_path)
+            return text or None
+        except Exception as e:
+            logger.error("PDF extraction error: %s", e, exc_info=True)
+            return None
 
     def process_image(self, image_path: str) -> Optional[str]:
         """Process image using OCR"""
@@ -160,9 +176,11 @@ class DocumentProcessor:
             combined_text = "\n".join(combined_content)
 
             # Generate new structured content from combined documents
-            response = openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[
+            response = timed_completion(
+                "document_combine",
+                lambda: openai_client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
                     {
                         "role": "system",
                         "content": """Create a unified study document that combines and organizes the provided content from multiple sources.
@@ -209,7 +227,9 @@ class DocumentProcessor:
                         "role": "user",
                         "content": combined_text
                     }
-                ]
+                    ],
+                    response_format={"type": "json_object"},
+                ),
             )
 
             return json.loads(response.choices[0].message.content)

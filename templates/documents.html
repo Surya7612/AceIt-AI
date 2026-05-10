@@ -110,3 +110,63 @@
     </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const combineBtn = document.getElementById('combine-selected');
+    const selectAll = document.getElementById('select-all');
+
+    function selectableBoxes() {
+        return Array.from(document.querySelectorAll('.doc-select:not([disabled])'));
+    }
+
+    function updateCombineState() {
+        const selected = selectableBoxes().filter((cb) => cb.checked);
+        if (combineBtn) combineBtn.disabled = selected.length === 0;
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            selectableBoxes().forEach((cb) => { cb.checked = selectAll.checked; });
+            updateCombineState();
+        });
+    }
+
+    selectableBoxes().forEach((cb) => cb.addEventListener('change', updateCombineState));
+
+    if (combineBtn) {
+        combineBtn.addEventListener('click', async () => {
+            const ids = selectableBoxes().filter((cb) => cb.checked).map((cb) => parseInt(cb.value, 10));
+            if (!ids.length) return;
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            combineBtn.disabled = true;
+            try {
+                const res = await fetch('/documents/combine', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': token,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ doc_ids: ids }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.location.href = '/documents/' + data.document_id;
+                } else {
+                    alert(data.error || 'Combine failed');
+                }
+            } catch (e) {
+                alert('Combine failed');
+            } finally {
+                combineBtn.disabled = false;
+                updateCombineState();
+            }
+        });
+    }
+
+    updateCombineState();
+});
+</script>
+{% endblock %}
