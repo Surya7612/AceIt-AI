@@ -1,29 +1,5 @@
 # AceIt AI — Intelligent Interview Preparation Platform
 
-**Portfolio stack:** Flask, PostgreSQL, Redis, Celery, OpenAI (chat + embeddings), hybrid **RAG** (BM25 + embeddings + optional expand/rerank), Stripe-ready subscriptions.
-
-| | |
-|:--|:--|
-| **Live demo** | *Add your public URL after deploying (e.g. `https://aceit-ai.up.railway.app`)* |
-| **Source** | *Replace with your GitHub repository URL* |
-
-### Demo path (golden path for reviewers)
-
-1. **Register** and **log in**.  
-2. **Upload** a short PDF or paste-friendly doc → wait until it shows **processed** (the **Celery worker** must be running).  
-3. Use **study plans** or **chat** and ask something that should be grounded in your uploaded material.
-
-### Before you ship (portfolio checklist)
-
-- [ ] **Railway:** web (Gunicorn) + **worker** (`celery -A celery_worker worker --loglevel=info`) + **Postgres** + **Redis**; on the worker service, **disable HTTP healthcheck** (see [Deploy on Railway](#deploy-on-railway)).  
-- [ ] **`uploads/`:** attach a [volume](https://docs.railway.app/guides/volumes) at `uploads` or accept that files reset on redeploy.  
-- [ ] **Secrets:** set **`OPENAI_API_KEY`** and a strong **`FLASK_SECRET_KEY`** in the platform UI only; use **`SESSION_COOKIE_SECURE=true`** behind HTTPS.  
-- [ ] **OpenAI spend:** set an account budget alert; optional env caps — **`RAG_QUERY_EXPAND=false`**, **`RAG_LLM_RERANK=false`**, lower **`RAG_EMBEDDING_POOL`** (see `.env.example`).  
-- [ ] **Stripe:** use **test mode** for demos, or omit keys until webhooks are configured.  
-- [ ] **README:** replace the **Live demo** and **Source** placeholders above with real links.
-
-Environment template: copy **`.env.example`** → **`.env`** (see [Environment Configuration](#3-environment-configuration)).
-
 ## Product Description:
 AceIt AI is an innovative interview preparation platform that leverages artificial intelligence to help job seekers improve their interview skills through personalized learning and real-time feedback. The platform combines advanced AI technologies with interactive learning tools to create a comprehensive interview preparation experience.
 
