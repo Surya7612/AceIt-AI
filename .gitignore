@@ -39,8 +39,7 @@ dump.rdb
 *.swp
 *.swo
 
-# Local platform files (optional)
-.replit
+# Replit workspace junk (`.replit` is tracked for reproducible deploys)
 .config/
 .upm/
 .cache/

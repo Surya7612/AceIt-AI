@@ -136,25 +136,33 @@ Hybrid retrieval mixes **BM25** (lexical) with **OpenAI embeddings**. Candidate 
 | `RAG_RERANK_MODEL` | `gpt-4o-mini` | Model for permutation rerank JSON. |
 | `RAG_RERANK_POOL` | `12` | How many top fused chunks the reranker may reorder. |
 
-#### Deploy on Railway
+#### Deploy on Replit
 
-Use three pieces: **web** (Gunicorn), **worker** (Celery), and managed **PostgreSQL** + **Redis**. The repo **`Procfile`** defines:
+Configured via **`.replit`** (Run workflows + published deployment) and **`replit.nix`** (Redis, Tesseract OCR, PostgreSQL client tooling, OpenSSL).
 
-- **`release`** — runs **`flask db upgrade`** before each deploy (set **`FLASK_APP=main:app`** in the service variables, or rely on **`.flaskenv`** if your build copies it).
-- **`web`** — **`gunicorn "app:app"`** bound to **`$PORT`** (Railway injects **`PORT`** automatically).
-- **`worker`** — **not** started by the web service; create a **second Railway service** from the same repo and set the start command to:  
-  **`celery -A celery_worker worker --loglevel=info`**  
-  On that worker service, **disable the HTTP healthcheck** in Railway (there is no `/health` listener); **`railway.json`** is intended for the **web** process only.
+**1. Secrets** (Tools → **Secrets** — mirror **`.env.example`**):
 
-**Variables (web + worker):** mirror your `.env`: **`DATABASE_URL`** (from Railway Postgres; the app normalizes legacy **`postgres://`** URLs), **`REDIS_URL`** (Railway Redis plugin), **`OPENAI_API_KEY`**, **`FLASK_SECRET_KEY`**, and for HTTPS **`SESSION_COOKIE_SECURE=true`**.
+- **`DATABASE_URL`** — Replit PostgreSQL or any hosted Postgres (`postgres://` is normalized for SQLAlchemy).
+- **`REDIS_URL`** — dev: `redis://127.0.0.1:6379/0` with the **Redis Server** workflow. Published Autoscale runs **only** the deployment command (Gunicorn), so use **hosted Redis** for production-shaped URLs unless your Replit plan runs Redis/workers alongside the deployment.
+- **`OPENAI_API_KEY`**, **`FLASK_SECRET_KEY`**, **`FLASK_APP=main:app`**
+- **`SESSION_COOKIE_SECURE=true`** on HTTPS Replit hosts.
 
-**`nixpacks.toml`** installs **`tesseract-ocr`** so image OCR works on Railway’s build image.
+**2. Shell (once per fresh database):**
 
-**`railway.json`** sets **`deploy.healthcheckPath`** to **`/health`** (see **`health.py`**) so deploys wait for a **`200`** from Gunicorn before traffic shifts.
+```bash
+pip install -r requirements.txt
+flask db upgrade
+```
 
-**Uploads:** the default **`uploads/`** folder is on ephemeral disk unless you attach a [Railway volume](https://docs.railway.app/guides/volumes) mounted at **`uploads`** (or switch to object storage later).
+**3. Development Run** — **Run** → **Project** starts **Flask Server** (Gunicorn, port **5000**), **Celery Worker**, and **Redis Server** in parallel.
 
-Official docs: [Railway](https://docs.railway.app/).
+**4. Published deployment** — **`[deployment]`** in **`.replit`** targets Autoscale: **`gunicorn 'app:app'`** on **`0.0.0.0:$PORT`**. Background document processing still requires **Celery** connected to the same **`REDIS_URL`** as the web app—follow [Replit deployment docs](https://docs.replit.com/hosting/deployments/about-deployments) for workers / Always-On patterns on your plan.
+
+**5. Health:** HTTP GET `/health` returns `{"status":"ok"}`.
+
+**Uploads** live under **`uploads/`**; treat as ephemeral across repl resets.
+
+**Optional:** **`Procfile`** helps Heroku-style hosts only; Replit uses **`.replit`** for the publish command.
 
 ### 4. Database Initialization
 
@@ -200,7 +208,9 @@ The platform uses OpenAI's GPT-4 model for various features:
 ├── subscription.py      # Stripe subscription blueprint
 ├── extensions.py        # Flask app, SQLAlchemy, login, CSRF, migrations
 ├── models.py            # ORM models
-├── health.py            # /health for load balancers (Railway healthcheck)
+├── health.py            # GET /health for uptime probes
+├── .replit              # Replit workflows & deployment command
+├── replit.nix           # Replit Nix deps (redis, tesseract, postgres, openssl)
 ├── ai_helper.py         # LLM / tutor helpers
 ├── rag_context.py       # BM25 + hybrid retrieval orchestration
 ├── rag_embeddings.py    # Embeddings + fusion
@@ -209,5 +219,5 @@ The platform uses OpenAI's GPT-4 model for various features:
 ├── static/              # Static assets
 ├── templates/           # Jinja templates
 ├── tests/               # Pytest suite
-└── uploads/             # User uploads (use a volume in production)
+└── uploads/             # User uploads (ephemeral on Repl unless you sync out)
 ```

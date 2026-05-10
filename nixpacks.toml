@@ -1,3 +1,0 @@
-# Railway uses Nixpacks by default. Image OCR needs the Tesseract binary at runtime.
-[phases.setup]
-aptPkgs = ["tesseract-ocr"]
